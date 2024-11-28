@@ -1,0 +1,18 @@
+[package]
+name = "swiftfetch"
+version = "0.1.0"
+edition = "2021"
+
+[profile.release]
+opt-level = 3
+lto = true  # Link Time Optimization
+debug = true
+codegen-units = 1  # Reduce the number of codegen units for more optimization
+
+[dependencies]
+sysinfo = "0.29" # For system information
+colored = "2.0"  # For colorful output
+toml = "0.7"
+serde = { version = "1.0", features = ["derive"] }
+rayon = "1.5"
+dirs = "4.0"

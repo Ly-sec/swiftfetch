@@ -1,0 +1,28 @@
+# These are the only options for now, I'll add some more later on.
+# You can just remove whatever you want.
+
+[display]
+user_host_format = "{username}@{hostname}"
+os = "OS"
+kernel = "Kernel"
+cpu = "CPU"
+wm = "WM"
+packages = "PKGS"
+flatpak = "FLAT"
+ram = "RAM"
+uptime = "Uptime"
+os_age = "Age"
+
+separator = ": "
+
+order = [
+    "os",
+    "kernel",
+    "cpu",
+    "wm",
+    "packages",
+    "flatpak",
+    "ram",
+    "uptime",
+    "os_age"
+]
