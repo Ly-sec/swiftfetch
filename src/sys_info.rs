@@ -24,9 +24,7 @@ pub fn get_system_info() -> (
 
     let username = env::var("USER").unwrap_or_else(|_| "Unknown".to_string());
     let hostname = read_file("/proc/sys/kernel/hostname").unwrap_or_else(|_| "Unknown".to_string());
-    let wm_de = env::var("XDG_SESSION_DESKTOP")
-        .or_else(|_| env::var("DESKTOP_SESSION"))
-        .unwrap_or_else(|_| "Unknown".to_string());
+    let wm_de = detect_wm_or_de();
 
     let (pacman_pkg_count, flatpak_pkg_count) = rayon::join(
         get_pacman_package_count,
@@ -49,6 +47,65 @@ pub fn get_system_info() -> (
         uptime,
         os_age,
     )
+}
+
+fn detect_wm_or_de() -> String {
+    // Check common environment variables
+    if let Ok(xdg_session_desktop) = env::var("XDG_SESSION_DESKTOP") {
+        if !xdg_session_desktop.is_empty() {
+            return capitalize_first_letter(&xdg_session_desktop);
+        }
+    }
+    if let Ok(desktop_session) = env::var("DESKTOP_SESSION") {
+        if !desktop_session.is_empty() {
+            return capitalize_first_letter(&desktop_session);
+        }
+    }
+    if let Ok(current_desktop) = env::var("XDG_CURRENT_DESKTOP") {
+        if !current_desktop.is_empty() {
+            return capitalize_first_letter(&current_desktop);
+        }
+    }
+    if let Ok(wl_shell) = env::var("WAYLAND_DISPLAY") {
+        if wl_shell.contains("wayland") {
+            // Likely running on Wayland
+            return "Wayland".to_string();
+        }
+    }
+
+    // Check for specific processes using ps
+    let output = Command::new("sh")
+        .arg("-c")
+        .arg("ps -e | grep -E 'sway|swayfx|kwin|mutter|xfwm4|openbox|i3|bspwm|awesome|hyprland|weston|gnome-session'")
+        .output();
+
+    if let Ok(output) = output {
+        if let Ok(output_str) = String::from_utf8(output.stdout) {
+            if !output_str.is_empty() {
+                let process_name = output_str
+                    .lines()
+                    .next()
+                    .unwrap_or("Unknown")
+                    .split_whitespace()
+                    .last()
+                    .unwrap_or("Unknown")
+                    .to_string();
+
+                return capitalize_first_letter(&process_name);
+            }
+        }
+    }
+
+    "Unknown".to_string()
+}
+
+// Helper function to capitalize the first letter of a string
+fn capitalize_first_letter(s: &str) -> String {
+    if let Some(first) = s.chars().next() {
+        format!("{}{}", first.to_uppercase(), &s[1..])
+    } else {
+        s.to_string()
+    }
 }
 
 fn get_os_age() -> Result<String, std::io::Error> {
@@ -135,7 +192,6 @@ fn read_memory_info() -> (f64, f64) {
 
     (total_memory_gb, used_memory_gb)
 }
-
 
 fn read_uptime() -> Result<u64, std::io::Error> {
     let uptime_str = read_file("/proc/uptime")?;
