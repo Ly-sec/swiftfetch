@@ -105,7 +105,6 @@ fn get_os_age() -> Result<String, std::io::Error> {
         .output()?;
 
     let result = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    println!("Debug: OS Age Output = {:?}", result); // Debugging output
     Ok(result)
 }
 
