@@ -92,11 +92,23 @@ fn capitalize_first_letter(s: &str) -> String {
 fn get_os_age() -> Result<String, std::io::Error> {
     let output = Command::new("sh")
         .arg("-c")
-        .arg("birth_install=$(stat -c %W /); current=$(date +%s); days=$(( (current - birth_install) / 86400 )); echo $days day(s)")
+        .arg(
+            "birth=$(stat -c %W / 2>/dev/null || echo 0); \
+             if [ \"$birth\" -gt 0 ]; then \
+               current=$(date +%s); \
+               age=$(( (current - birth) / 86400 )); \
+               echo \"$age day(s)\"; \
+             else \
+               echo \"Unsupported\"; \
+             fi",
+        )
         .output()?;
 
-    Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+    let result = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    println!("Debug: OS Age Output = {:?}", result); // Debugging output
+    Ok(result)
 }
+
 
 fn read_os_name() -> Result<String, std::io::Error> {
     let os_release = read_file("/etc/os-release")?;
