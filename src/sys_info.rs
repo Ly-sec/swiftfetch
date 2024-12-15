@@ -174,7 +174,15 @@ fn get_pacman_package_count() -> usize {
 }
 
 fn get_flatpak_package_count() -> usize {
-    fs::read_dir("/var/lib/flatpak/app")
-        .map(|entries| entries.filter_map(|e| e.ok()).count())
-        .unwrap_or(0)
+    let flatpak_dir = "/var/lib/flatpak/app";
+    
+    if let Ok(entries) = fs::read_dir(flatpak_dir) {
+        entries
+            .filter_map(|entry| entry.ok())
+            .filter(|entry| entry.file_type().map_or(false, |ft| ft.is_dir()))
+            .count()
+    } else {
+        0
+    }
 }
+
