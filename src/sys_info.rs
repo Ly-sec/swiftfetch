@@ -50,48 +50,30 @@ pub fn get_system_info() -> (
 }
 
 fn detect_wm_or_de() -> String {
-    // Check common environment variables
-    if let Ok(xdg_session_desktop) = env::var("XDG_SESSION_DESKTOP") {
-        if !xdg_session_desktop.is_empty() {
-            return capitalize_first_letter(&xdg_session_desktop);
-        }
-    }
-    if let Ok(desktop_session) = env::var("DESKTOP_SESSION") {
-        if !desktop_session.is_empty() {
-            return capitalize_first_letter(&desktop_session);
-        }
-    }
-    if let Ok(current_desktop) = env::var("XDG_CURRENT_DESKTOP") {
-        if !current_desktop.is_empty() {
-            return capitalize_first_letter(&current_desktop);
-        }
-    }
-    if let Ok(wl_shell) = env::var("WAYLAND_DISPLAY") {
-        if wl_shell.contains("wayland") {
-            // Likely running on Wayland
-            return "Wayland".to_string();
+    // Check common environment variables first
+    if let Ok(env_var) = env::var("XDG_CURRENT_DESKTOP").or_else(|_| env::var("DESKTOP_SESSION")) {
+        if !env_var.is_empty() {
+            return capitalize_first_letter(&env_var);
         }
     }
 
-    // Check for specific processes using ps
+    // Check for Wayland
+    if env::var("WAYLAND_DISPLAY").is_ok() {
+        return "Wayland".to_string();
+    }
+
+    // Fallback: check for running WM/DE processes
     let output = Command::new("sh")
         .arg("-c")
-        .arg("ps -e | grep -E 'sway|swayfx|kwin|mutter|xfwm4|openbox|i3|bspwm|awesome|hyprland|weston|gnome-session'")
-        .output();
+        .arg("ps -e | grep -E 'sway|hyprland|kwin|mutter|xfwm4|openbox|i3|bspwm|awesome|weston|gnome-session'")
+        .output()
+        .ok();
 
-    if let Ok(output) = output {
-        if let Ok(output_str) = String::from_utf8(output.stdout) {
-            if !output_str.is_empty() {
-                let process_name = output_str
-                    .lines()
-                    .next()
-                    .unwrap_or("Unknown")
-                    .split_whitespace()
-                    .last()
-                    .unwrap_or("Unknown")
-                    .to_string();
-
-                return capitalize_first_letter(&process_name);
+    if let Some(output) = output {
+        let result = String::from_utf8_lossy(&output.stdout);
+        if let Some(line) = result.lines().next() {
+            if let Some(process) = line.split_whitespace().last() {
+                return capitalize_first_letter(process);
             }
         }
     }
@@ -99,7 +81,6 @@ fn detect_wm_or_de() -> String {
     "Unknown".to_string()
 }
 
-// Helper function to capitalize the first letter of a string
 fn capitalize_first_letter(s: &str) -> String {
     if let Some(first) = s.chars().next() {
         format!("{}{}", first.to_uppercase(), &s[1..])
@@ -111,15 +92,10 @@ fn capitalize_first_letter(s: &str) -> String {
 fn get_os_age() -> Result<String, std::io::Error> {
     let output = Command::new("sh")
         .arg("-c")
-        .arg("birth_install=$(stat -c %W /); current=$(date +%s); time_progression=$((current - birth_install)); days_difference=$((time_progression / 86400)); echo $days_difference day\\(s\\)")
+        .arg("birth_install=$(stat -c %W /); current=$(date +%s); days=$(( (current - birth_install) / 86400 )); echo $days day(s)")
         .output()?;
 
-    if !output.status.success() {
-        return Err(std::io::Error::new(std::io::ErrorKind::Other, "Failed to get OS age"));
-    }
-
-    let os_age = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    Ok(os_age)
+    Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
 }
 
 fn read_os_name() -> Result<String, std::io::Error> {
@@ -134,69 +110,46 @@ fn read_os_name() -> Result<String, std::io::Error> {
 
 fn read_kernel_version() -> Result<String, std::io::Error> {
     let version_info = read_file("/proc/version")?;
-    for line in version_info.lines() {
-        if line.starts_with("Linux version") {
-            let parts: Vec<&str> = line.split_whitespace().collect();
-            if parts.len() > 2 {
-                return Ok(parts[2].to_string()); // Kernel version is the 3rd element
-            }
-        }
-    }
-    Err(std::io::Error::new(std::io::ErrorKind::NotFound, "Kernel version not found"))
+    version_info.split_whitespace().nth(2)
+        .map(|v| v.to_string())
+        .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::NotFound, "Kernel version not found"))
 }
 
 fn read_cpu_info() -> Result<String, std::io::Error> {
     let cpuinfo = read_file("/proc/cpuinfo")?;
     for line in cpuinfo.lines() {
         if line.starts_with("model name") {
-            return Ok(line.split(":").nth(1).unwrap_or("Unknown CPU").trim().to_string());
+            return Ok(line.split(':').nth(1).unwrap_or("Unknown CPU").trim().to_string());
         }
     }
     Err(std::io::Error::new(std::io::ErrorKind::NotFound, "CPU info not found"))
 }
 
 fn read_memory_info() -> (f64, f64) {
-    let meminfo = read_file("/proc/meminfo").unwrap_or_else(|_| "".to_string());
+    let meminfo = read_file("/proc/meminfo").unwrap_or_default();
+    let total = extract_memory(&meminfo, "MemTotal");
+    let free = extract_memory(&meminfo, "MemFree") 
+             + extract_memory(&meminfo, "Buffers") 
+             + extract_memory(&meminfo, "Cached");
 
-    let total_memory_kb = meminfo.lines()
-        .find(|line| line.starts_with("MemTotal"))
+    let total_gb = total / 1024.0 / 1024.0;
+    let used_gb = (total - free) / 1024.0 / 1024.0;
+
+    (total_gb, used_gb)
+}
+
+fn extract_memory(meminfo: &str, key: &str) -> f64 {
+    meminfo.lines()
+        .find(|line| line.starts_with(key))
         .and_then(|line| line.split_whitespace().nth(1))
-        .unwrap_or("0")
-        .parse::<f64>()
-        .unwrap_or(0.0);
-
-    let free_memory_kb = meminfo.lines()
-        .find(|line| line.starts_with("MemFree"))
-        .and_then(|line| line.split_whitespace().nth(1))
-        .unwrap_or("0")
-        .parse::<f64>()
-        .unwrap_or(0.0);
-
-    let buffers_kb = meminfo.lines()
-        .find(|line| line.starts_with("Buffers"))
-        .and_then(|line| line.split_whitespace().nth(1))
-        .unwrap_or("0")
-        .parse::<f64>()
-        .unwrap_or(0.0);
-
-    let cached_kb = meminfo.lines()
-        .find(|line| line.starts_with("Cached"))
-        .and_then(|line| line.split_whitespace().nth(1))
-        .unwrap_or("0")
-        .parse::<f64>()
-        .unwrap_or(0.0);
-
-    let total_memory_gb = total_memory_kb / 1024.0 / 1024.0; // Convert to GB
-    let available_memory_kb = free_memory_kb + buffers_kb + cached_kb;
-    let used_memory_gb = (total_memory_kb - available_memory_kb) / 1024.0 / 1024.0; // Convert to GB
-
-    (total_memory_gb, used_memory_gb)
+        .and_then(|value| value.parse::<f64>().ok())
+        .unwrap_or(0.0)
 }
 
 fn read_uptime() -> Result<u64, std::io::Error> {
     let uptime_str = read_file("/proc/uptime")?;
-    let uptime_secs: f64 = uptime_str.split_whitespace().next().unwrap_or("0").parse().unwrap_or(0.0);
-    Ok(uptime_secs as u64)
+    let secs = uptime_str.split_whitespace().next().unwrap_or("0").parse().unwrap_or(0.0);
+    Ok(secs as u64)
 }
 
 fn read_file(path: &str) -> Result<String, std::io::Error> {
@@ -204,23 +157,13 @@ fn read_file(path: &str) -> Result<String, std::io::Error> {
 }
 
 fn get_pacman_package_count() -> usize {
-    let pacman_db_path = "/var/lib/pacman/local";
-    let count = fs::read_dir(pacman_db_path)
-        .unwrap_or_else(|_| panic!("Failed to read pacman database"))
-        .filter_map(|entry| entry.ok())
-        .filter(|entry| entry.file_type().map_or(false, |ft| ft.is_dir()))
-        .count();
-
-    count
+    fs::read_dir("/var/lib/pacman/local")
+        .map(|entries| entries.filter_map(|e| e.ok()).count())
+        .unwrap_or(0)
 }
 
 fn get_flatpak_package_count() -> usize {
-    let flatpak_dir = "/var/lib/flatpak/app";
-    let count = fs::read_dir(flatpak_dir)
-        .unwrap_or_else(|_| panic!("Failed to read flatpak directory"))
-        .filter_map(|entry| entry.ok())
-        .filter(|entry| entry.file_type().map_or(false, |ft| ft.is_dir()))
-        .count();
-
-    count
+    fs::read_dir("/var/lib/flatpak/app")
+        .map(|entries| entries.filter_map(|e| e.ok()).count())
+        .unwrap_or(0)
 }
