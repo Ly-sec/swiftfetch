@@ -20,6 +20,7 @@ This command will install the program and automatically copy the default config.
 
 The configuration file can be found at `~/.config/swiftfetch/config.toml`, you can customize it to display or hide specific information based on your preferences.
 
+If you did not set $EDITOR then it will return `nano` as default. Most DEs do that by default afaik, might have to add it yourself for WMs
 Here is the default `config.toml` that will be copied automatically:
 
 ```
@@ -37,6 +38,7 @@ flatpak = "FLAT"
 ram = "RAM"
 uptime = "Uptime"
 os_age = "Age"
+editor = "Editor"
 
 separator = ": "
 
@@ -49,7 +51,8 @@ order = [
     "flatpak",
     "ram",
     "uptime",
-    "os_age"
+    "os_age",
+    "editor",
 ]
 ```
 

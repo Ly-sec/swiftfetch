@@ -1,7 +1,6 @@
 use std::{fs, process};
 use serde::Deserialize;
 use colored::*;
-
 use dirs;
 
 mod sys_info;
@@ -26,6 +25,7 @@ struct DisplayConfig {
     ram: Option<String>,
     uptime: Option<String>,
     os_age: Option<String>,
+    editor: Option<String>,
 }
 
 fn format_uptime(uptime_seconds: u64) -> String {
@@ -68,6 +68,7 @@ fn main() {
         "ram".to_string(),
         "uptime".to_string(),
         "os_age".to_string(),
+        "editor".to_string(),
     ]);
 
     // Fetch system information.
@@ -84,7 +85,8 @@ fn main() {
         flatpak_pkg_count,
         uptime_seconds,
         os_age,
-    ) = get_system_info();
+        editor,
+    ) = get_system_info();  // Return tuple with 12 elements
 
     // Display the user-host format with a fallback
     let user_host = config
@@ -153,6 +155,15 @@ fn main() {
                 separator,
                 os_age
             ),
+            "editor" => {
+                // Fetch editor from the environment variable
+                println!(
+                    "{}{}{}",
+                    config.display.editor.as_deref().unwrap_or("Editor").bold(),
+                    separator,
+                    editor
+                );
+            },
             _ => continue, // Ignore invalid or unknown fields
         }
     }

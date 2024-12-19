@@ -1,6 +1,4 @@
-use std::fs;
-use std::env;
-use std::process::Command;
+use std::{fs, env, process::Command};
 
 pub fn get_system_info() -> (
     String, // OS Name
@@ -15,6 +13,7 @@ pub fn get_system_info() -> (
     usize,  // Flatpak Package Count
     u64,    // Uptime
     String, // OS Age (in days)
+    String, // Editor
 ) {
     let os_name = read_os_name().unwrap_or_else(|_| "Unknown".to_string());
     let kernel_version = read_kernel_version().unwrap_or_else(|_| "Unknown".to_string());
@@ -33,6 +32,9 @@ pub fn get_system_info() -> (
 
     let os_age = get_os_age().unwrap_or_else(|_| "Unknown".to_string());
 
+    // Get the editor, defaulting to "nano" if not set
+    let editor = env::var("EDITOR").unwrap_or("nano".to_string());
+
     (
         os_name,
         kernel_version,
@@ -46,23 +48,21 @@ pub fn get_system_info() -> (
         flatpak_pkg_count,
         uptime,
         os_age,
+        editor,
     )
 }
 
 fn detect_wm_or_de() -> String {
-    // Check common environment variables first
     if let Ok(env_var) = env::var("XDG_CURRENT_DESKTOP").or_else(|_| env::var("DESKTOP_SESSION")) {
         if !env_var.is_empty() {
             return capitalize_first_letter(&env_var);
         }
     }
 
-    // Check for Wayland
     if env::var("WAYLAND_DISPLAY").is_ok() {
         return "Wayland".to_string();
     }
 
-    // Fallback: check for running WM/DE processes
     let output = Command::new("sh")
         .arg("-c")
         .arg("ps -e | grep -E 'sway|hyprland|kwin|mutter|xfwm4|openbox|i3|bspwm|awesome|weston|gnome-session'")
@@ -107,7 +107,6 @@ fn get_os_age() -> Result<String, std::io::Error> {
     let result = String::from_utf8_lossy(&output.stdout).trim().to_string();
     Ok(result)
 }
-
 
 fn read_os_name() -> Result<String, std::io::Error> {
     let os_release = read_file("/etc/os-release")?;
@@ -185,4 +184,3 @@ fn get_flatpak_package_count() -> usize {
         0
     }
 }
-

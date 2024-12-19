@@ -12,6 +12,7 @@ flatpak = "FLAT"
 ram = "RAM"
 uptime = "Uptime"
 os_age = "Age"
+editor = "Editor"
 
 separator = ": "
 
@@ -24,5 +25,6 @@ order = [
     "flatpak",
     "ram",
     "uptime",
-    "os_age"
+    "os_age",
+    "editor",
 ]
