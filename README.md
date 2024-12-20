@@ -83,3 +83,6 @@ Age: 32 day(s)
 ## Contributing
 
 If you'd like to contribute to swiftfetch, feel free to fork the repo and submit a pull request. Contributions are always welcome!
+
+## License
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
