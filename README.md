@@ -20,7 +20,7 @@ This command will install the program and automatically copy the default config.
 
 The configuration file can be found at `~/.config/swiftfetch/config.toml`, you can customize it to display or hide specific information based on your preferences.
 
-If you did not set $EDITOR then it will return `nano` as default. Most DEs do that by default afaik, might have to add it yourself for WMs
+If you did not set the `EDITOR` env then it will return `nano` as default. Most DEs do that by default as far as I'm aware, you might have to add it yourself for WMs.
 Here is the default `config.toml` that will be copied automatically:
 
 ```
@@ -59,7 +59,7 @@ order = [
 ## Configuration Options
 
 - `user_host_format`: Defines the format for displaying the username and hostname (e.g., {username}@{hostname}).
-- `os`, `kernel`, `cpu`, `wm`, `packages`, `flatpak`, `ram`, `uptime`, `age`: These are the fields displayed by swiftfetch. You can set them to any string, or remove any that you don't need.
+- `os`, `kernel`, `cpu`, `wm`, `packages`, `flatpak`, `ram`, `uptime`, `os_age`, `editor`: These are the fields displayed by swiftfetch. You can set them to any string, or remove any that you don't need.
 - `separator`: Defines the separator between the label and value (e.g., ": ").
 - `order`: Defines the order in which the information is displayed. You can reorder or remove items from this list.
 
