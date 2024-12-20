@@ -10,7 +10,9 @@
 
 ## Installation
 
-To install swiftfetch, use the following command from the root of the project:
+You can install `swiftfetch` via the AUR.
+
+To install swiftfetch through this, use the following command from the root of the project:
 
 `cargo install --path .`
 
