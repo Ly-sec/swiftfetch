@@ -183,4 +183,5 @@ fn main() {
             _ => continue, // Ignore invalid or unknown fields
         }
     }
+    println!();
 }
