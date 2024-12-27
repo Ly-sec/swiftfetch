@@ -14,6 +14,8 @@ pub fn get_system_info() -> (
     u64,    // Uptime
     String, // OS Age (in days)
     String, // Editor
+    String, // Shell
+    String, // Terminal
 ) {
     let os_name = read_os_name().unwrap_or_else(|_| "Unknown".to_string());
     let kernel_version = read_kernel_version().unwrap_or_else(|_| "Unknown".to_string());
@@ -35,6 +37,14 @@ pub fn get_system_info() -> (
     // Get the editor, defaulting to "nano" if not set
     let editor = env::var("EDITOR").unwrap_or("nano".to_string());
 
+    // Detect shell and terminal
+    let shell = env::var("SHELL")
+        .unwrap_or_else(|_| "Unknown".to_string())
+        .replace("/usr/bin/", "");
+    let terminal = env::var("TERM")
+        .unwrap_or_else(|_| "Unknown".to_string())
+        .replace("xterm-", "");
+
     (
         os_name,
         kernel_version,
@@ -49,6 +59,8 @@ pub fn get_system_info() -> (
         uptime,
         os_age,
         editor,
+        shell,
+        terminal,
     )
 }
 

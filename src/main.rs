@@ -26,6 +26,8 @@ struct DisplayConfig {
     uptime: Option<String>,
     os_age: Option<String>,
     editor: Option<String>,
+    shell: Option<String>,
+    terminal: Option<String>,
 }
 
 fn format_uptime(uptime_seconds: u64) -> String {
@@ -69,6 +71,8 @@ fn main() {
         "uptime".to_string(),
         "os_age".to_string(),
         "editor".to_string(),
+        "shell".to_string(),
+        "terminal".to_string(),
     ]);
 
     // Fetch system information.
@@ -86,8 +90,11 @@ fn main() {
         uptime_seconds,
         os_age,
         editor,
-    ) = get_system_info();  // Return tuple with 12 elements
+        shell,
+        terminal,
+    ) = get_system_info();
 
+    // Fetch shell and terminal from environment variables
     // Display the user-host format with a fallback
     let user_host = config
         .display
@@ -155,15 +162,24 @@ fn main() {
                 separator,
                 os_age
             ),
-            "editor" => {
-                // Fetch editor from the environment variable
-                println!(
-                    "{}{}{}",
-                    config.display.editor.as_deref().unwrap_or("Editor").bold(),
-                    separator,
-                    editor
-                );
-            },
+            "editor" => println!(
+                "{}{}{}",
+                config.display.editor.as_deref().unwrap_or("Editor").bold(),
+                separator,
+                editor
+            ),
+            "shell" => println!(
+                "{}{}{}",
+                config.display.shell.as_deref().unwrap_or("Shell").bold(),
+                separator,
+                shell
+            ),
+            "terminal" => println!(
+                "{}{}{}",
+                config.display.terminal.as_deref().unwrap_or("Terminal").bold(),
+                separator,
+                terminal
+            ),
             _ => continue, // Ignore invalid or unknown fields
         }
     }

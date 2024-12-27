@@ -13,6 +13,8 @@ ram = "RAM"
 uptime = "Uptime"
 os_age = "Age"
 editor = "Editor"
+shell = "Shell"
+terminal = "Terminal"
 
 separator = ": "
 
@@ -27,4 +29,6 @@ order = [
     "uptime",
     "os_age",
     "editor",
+    "shell",
+    "terminal",
 ]
