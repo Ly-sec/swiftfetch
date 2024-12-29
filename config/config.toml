@@ -3,19 +3,18 @@
 
 [display]
 user_host_format = "{username}@{hostname}"
-os = "OS"
-kernel = "Kernel"
-cpu = "CPU"
-wm = "WM"
-packages = "PKGS"
-flatpak = "FLAT"
-ram = "RAM"
-uptime = "Uptime"
-os_age = "Age"
-editor = "Editor"
-shell = "Shell"
-terminal = "Terminal"
-
+os = "󰣇 ‣ os"
+kernel = "󰍛 ‣ kernel"
+cpu = "󰍛 ‣ cpu"
+wm = " ‣ wm"
+packages = " ‣ pkgs"
+flatpak = " ‣ flat"
+ram = "󰓅 ‣ ram"
+uptime = " ‣ uptime"
+os_age = " ‣ age"
+editor = " ‣ editor"
+shell = " ‣ shell"
+terminal = " ‣ term"
 separator = ": "
 
 order = [

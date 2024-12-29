@@ -40,7 +40,9 @@ pub fn get_system_info() -> (
     // Detect shell and terminal
     let shell = env::var("SHELL")
         .unwrap_or_else(|_| "Unknown".to_string())
-        .replace("/usr/bin/", "");
+        .replace("/usr/bin/", "")
+        .replace("/bin/", "");
+
     let terminal = env::var("TERM")
         .unwrap_or_else(|_| "Unknown".to_string())
         .replace("xterm-", "");
