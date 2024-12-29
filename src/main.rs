@@ -103,6 +103,7 @@ fn main() {
         .unwrap_or("{username}@{hostname}")
         .replace("{username}", &username)
         .replace("{hostname}", &hostname);
+    println!();
     println!("{}", user_host.bold());
 
     // Display information based on the order defined in the configuration
