@@ -111,7 +111,11 @@ fn get_os_age() -> Result<String, std::io::Error> {
              if [ \"$birth\" -gt 0 ]; then \
                current=$(date +%s); \
                age=$(( (current - birth) / 86400 )); \
-               echo \"$age day(s)\"; \
+               if [ \"$age\" -eq 1 ]; then \
+                 echo \"$age day\"; \
+               else \
+                 echo \"$age days\"; \
+               fi; \
              else \
                echo \"Unsupported\"; \
              fi",
@@ -121,6 +125,7 @@ fn get_os_age() -> Result<String, std::io::Error> {
     let result = String::from_utf8_lossy(&output.stdout).trim().to_string();
     Ok(result)
 }
+
 
 fn read_os_name() -> Result<String, std::io::Error> {
     let os_release = read_file("/etc/os-release")?;
