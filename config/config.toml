@@ -15,6 +15,7 @@ os_age = " ‣ age"
 editor = " ‣ editor"
 shell = " ‣ shell"
 terminal = " ‣ term"
+
 separator = ": "
 
 order = [

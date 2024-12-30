@@ -40,42 +40,43 @@ fn format_uptime(uptime_seconds: u64) -> String {
     }
 }
 
+fn format_output(label: &str, value: &str, separator: &str) -> String {
+    format!("{}{}{}", label.bold(), separator, value)
+}
+
 fn main() {
-    // Determine the configuration file path
     let config_path = dirs::config_dir()
         .map(|p| p.join("swiftfetch/config.toml"))
-        .unwrap_or_else(|| "config.toml".into()); // Fallback to local config.toml
+        .unwrap_or_else(|| "config.toml".into());
 
-    // Read the configuration file
-    let config_data = fs::read_to_string(&config_path).unwrap_or_else(|_| {
-        eprintln!("Failed to read configuration file at {}", config_path.display());
+    let config_data = fs::read_to_string(&config_path).unwrap_or_else(|err| {
+        eprintln!(
+            "Failed to read configuration file at {}: {}",
+            config_path.display(),
+            err
+        );
         process::exit(1);
     });
 
-    // Parse the configuration file
-    let config: Config = toml::de::from_str(&config_data).unwrap_or_else(|_| {
-        eprintln!("Failed to parse configuration file at {}", config_path.display());
+    let config: Config = toml::de::from_str(&config_data).unwrap_or_else(|err| {
+        eprintln!(
+            "Failed to parse configuration file at {}: {}",
+            config_path.display(),
+            err
+        );
         process::exit(1);
     });
 
-    // Set defaults for missing configuration values
     let separator = config.display.separator.as_deref().unwrap_or(": ");
-    let order = config.display.order.clone().unwrap_or_else(|| vec![
-        "os".to_string(),
-        "kernel".to_string(),
-        "cpu".to_string(),
-        "wm".to_string(),
-        "packages".to_string(),
-        "flatpak".to_string(),
-        "ram".to_string(),
-        "uptime".to_string(),
-        "os_age".to_string(),
-        "editor".to_string(),
-        "shell".to_string(),
-        "terminal".to_string(),
-    ]);
+    let default_order = vec![
+        "os", "kernel", "cpu", "wm", "packages", "flatpak", "ram", "uptime", "os_age", "editor",
+        "shell", "terminal",
+    ]
+    .into_iter()
+    .map(String::from)
+    .collect::<Vec<_>>();
+    let order = config.display.order.clone().unwrap_or(default_order);
 
-    // Fetch system information.
     let (
         os_name,
         kernel_version,
@@ -94,8 +95,6 @@ fn main() {
         terminal,
     ) = get_system_info();
 
-    // Fetch shell and terminal from environment variables
-    // Display the user-host format with a fallback
     let user_host = config
         .display
         .user_host_format
@@ -103,86 +102,50 @@ fn main() {
         .unwrap_or("{username}@{hostname}")
         .replace("{username}", &username)
         .replace("{hostname}", &hostname);
-    println!();
-    println!("{}", user_host.bold());
+    println!("\n{}", user_host.bold());
+    
 
-    // Display information based on the order defined in the configuration
-    for field in order.iter() {
-        match field.as_str() {
-            "os" => println!(
-                "{}{}{}",
-                config.display.os.as_deref().unwrap_or("OS").bold(),
-                separator,
-                os_name
-            ),
-            "kernel" => println!(
-                "{}{}{}",
-                config.display.kernel.as_deref().unwrap_or("Kernel").bold(),
-                separator,
-                kernel_version
-            ),
-            "cpu" => println!(
-                "{}{}{}",
-                config.display.cpu.as_deref().unwrap_or("CPU").bold(),
-                separator,
-                cpu_brand
-            ),
-            "wm" => println!(
-                "{}{}{}",
-                config.display.wm.as_deref().unwrap_or("WM").bold(),
-                separator,
-                wm_de
-            ),
-            "packages" => println!(
-                "{}{}{}",
-                config.display.packages.as_deref().unwrap_or("PKGS").bold(),
-                separator,
-                pacman_pkg_count
-            ),
-            "flatpak" => println!(
-                "{}{}{}",
-                config.display.flatpak.as_deref().unwrap_or("FLAT").bold(),
-                separator,
-                flatpak_pkg_count
-            ),
-            "ram" => println!(
-                "{}{}{}",
-                config.display.ram.as_deref().unwrap_or("RAM").bold(),
-                separator,
-                format!("{:.2} GB / {:.2} GB", memory_used_gb, total_memory_gb)
-            ),
-            "uptime" => println!(
-                "{}{}{}",
-                config.display.uptime.as_deref().unwrap_or("Uptime").bold(),
-                separator,
-                format_uptime(uptime_seconds)
-            ),
-            "os_age" => println!(
-                "{}{}{}",
-                config.display.os_age.as_deref().unwrap_or("Age").bold(),
-                separator,
-                os_age
-            ),
-            "editor" => println!(
-                "{}{}{}",
-                config.display.editor.as_deref().unwrap_or("Editor").bold(),
-                separator,
-                editor
-            ),
-            "shell" => println!(
-                "{}{}{}",
-                config.display.shell.as_deref().unwrap_or("Shell").bold(),
-                separator,
-                shell
-            ),
-            "terminal" => println!(
-                "{}{}{}",
-                config.display.terminal.as_deref().unwrap_or("Terminal").bold(),
-                separator,
-                terminal
-            ),
-            _ => continue, // Ignore invalid or unknown fields
+    let fields = vec![
+        ("os", os_name),
+        ("kernel", kernel_version),
+        ("cpu", cpu_brand),
+        ("wm", wm_de),
+        ("packages", pacman_pkg_count.to_string()),
+        ("flatpak", flatpak_pkg_count.to_string()),
+        (
+            "ram",
+            format!("{:.2} GB / {:.2} GB", memory_used_gb, total_memory_gb),
+        ),
+        ("uptime", format_uptime(uptime_seconds)),
+        ("os_age", os_age),
+        ("editor", editor),
+        ("shell", shell),
+        ("terminal", terminal),
+    
+    ];
+
+    let field_map: std::collections::HashMap<_, _> = fields.into_iter().collect();
+
+    for field in order {
+        if let Some(value) = field_map.get(field.as_str()) {
+            let label = match field.as_str() {
+                "os" => config.display.os.as_deref().unwrap_or("OS"),
+                "kernel" => config.display.kernel.as_deref().unwrap_or("Kernel"),
+                "cpu" => config.display.cpu.as_deref().unwrap_or("CPU"),
+                "wm" => config.display.wm.as_deref().unwrap_or("WM"),
+                "packages" => config.display.packages.as_deref().unwrap_or("PKGS"),
+                "flatpak" => config.display.flatpak.as_deref().unwrap_or("FLAT"),
+                "ram" => config.display.ram.as_deref().unwrap_or("RAM"),
+                "uptime" => config.display.uptime.as_deref().unwrap_or("Uptime"),
+                "os_age" => config.display.os_age.as_deref().unwrap_or("Age"),
+                "editor" => config.display.editor.as_deref().unwrap_or("Editor"),
+                "shell" => config.display.shell.as_deref().unwrap_or("Shell"),
+                "terminal" => config.display.terminal.as_deref().unwrap_or("Terminal"),
+                _ => continue,
+            };
+            println!("{}", format_output(label, value, separator));
         }
     }
+
     println!();
 }

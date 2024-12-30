@@ -34,10 +34,8 @@ pub fn get_system_info() -> (
 
     let os_age = get_os_age().unwrap_or_else(|_| "Unknown".to_string());
 
-    // Get the editor, defaulting to "nano" if not set
     let editor = env::var("EDITOR").unwrap_or("nano".to_string());
 
-    // Detect shell and terminal
     let shell = env::var("SHELL")
         .unwrap_or_else(|_| "Unknown".to_string())
         .replace("/usr/bin/", "")
@@ -65,6 +63,7 @@ pub fn get_system_info() -> (
         terminal,
     )
 }
+
 
 fn detect_wm_or_de() -> String {
     if let Ok(env_var) = env::var("XDG_CURRENT_DESKTOP").or_else(|_| env::var("DESKTOP_SESSION")) {
@@ -156,24 +155,32 @@ fn read_cpu_info() -> Result<String, std::io::Error> {
 
 fn read_memory_info() -> (f64, f64) {
     let meminfo = read_file("/proc/meminfo").unwrap_or_default();
-    let total = extract_memory(&meminfo, "MemTotal");
-    let free = extract_memory(&meminfo, "MemFree") 
-             + extract_memory(&meminfo, "Buffers") 
-             + extract_memory(&meminfo, "Cached");
 
+    // Total memory from MemTotal
+    let total = extract_memory(&meminfo, "MemTotal");
+
+    // Available memory from MemAvailable
+    let available = extract_memory(&meminfo, "MemAvailable");
+
+    // Calculate used memory
+    let used = total - available;
+
+    // Convert to GB
     let total_gb = total / 1024.0 / 1024.0;
-    let used_gb = (total - free) / 1024.0 / 1024.0;
+    let used_gb = used / 1024.0 / 1024.0;
 
     (total_gb, used_gb)
 }
 
 fn extract_memory(meminfo: &str, key: &str) -> f64 {
-    meminfo.lines()
+    meminfo
+        .lines()
         .find(|line| line.starts_with(key))
         .and_then(|line| line.split_whitespace().nth(1))
         .and_then(|value| value.parse::<f64>().ok())
         .unwrap_or(0.0)
 }
+
 
 fn read_uptime() -> Result<u64, std::io::Error> {
     let uptime_str = read_file("/proc/uptime")?;
