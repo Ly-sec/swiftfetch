@@ -1,34 +1,94 @@
-# These are the only options for now, I'll add some more later on.
-# You can just remove whatever you want.
+# This is the new way of configuring swiftfetch.
+# You're now able to use the "text" and "command" key.
+#
+# Example:
+# [[display.items]]
+# key = ""
+# type = "text"
+# value = ""
+#
+# You can leave the value & key empty for a new line. Else the key will be used as label and the value as text.
+#
+# Example:
+# [[display.items]]
+# key = ""
+# type = "command"
+# value = "free"
+#
+# Here the key will be the label and the value will be the command that you want to run.
 
 [display]
-user_host_format = "{username}@{hostname}"
-os = "󰣇 ‣ os"
-kernel = "󰍛 ‣ kernel"
-cpu = "󰍛 ‣ cpu"
-wm = " ‣ wm"
-packages = " ‣ pkgs"
-flatpak = " ‣ flat"
-ram = "󰓅 ‣ ram"
-uptime = " ‣ uptime"
-os_age = " ‣ age"
-editor = " ‣ editor"
-shell = " ‣ shell"
-terminal = " ‣ term"
+[[display.items]]
+key = ""
+type = "text"
+value = ""
 
-separator = ": "
+[[display.items]]
+key = "user_info"
+type = "default"
+value = "user_info"
 
-order = [
-    "os",
-    "kernel",
-    "cpu",
-    "wm",
-    "packages",
-    "flatpak",
-    "ram",
-    "uptime",
-    "os_age",
-    "editor",
-    "shell",
-    "terminal",
-]
+[[display.items]]
+key = "󰣇 ‣ os"
+type = "default"
+value = "os"
+
+[[display.items]]
+key = "󰍛 ‣ kernel"
+type = "default"
+value = "kernel"
+
+[[display.items]]
+key = "󰍛 ‣ cpu"
+type = "default"
+value = "cpu"
+
+[[display.items]]
+key = " ‣ wm"
+type = "default"
+value = "wm"
+
+[[display.items]]
+key = " ‣ editor"
+type = "default"
+value = "editor"
+
+[[display.items]]
+key = " ‣ shell"
+type = "default"
+value = "shell"
+
+[[display.items]]
+key = " ‣ term"
+type = "default"
+value = "terminal"
+
+[[display.items]]
+key = "󰓅 ‣ ram"
+type = "default"
+value = "memory"
+
+[[display.items]]
+key = " ‣ pkgs"
+type = "default"
+value = "pacman_pkg_count"
+
+[[display.items]]
+key = " ‣ flat"
+type = "default"
+value = "flatpak_pkg_count"
+
+[[display.items]]
+key = " ‣ uptime"
+type = "default"
+value = "uptime_seconds"
+
+[[display.items]]
+key = " ‣ age"
+type = "default"
+value = "os_age"
+
+[[display.items]]
+key = ""
+type = "text"
+value = ""

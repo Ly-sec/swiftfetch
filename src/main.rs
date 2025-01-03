@@ -1,81 +1,50 @@
-use std::{fs, process};
 use serde::Deserialize;
-use colored::*;
-use dirs;
-
+use std::{fs, process::Command};
+use dirs::config_dir;
 mod sys_info;
 use sys_info::get_system_info;
+use toml;
 
-#[derive(Deserialize)]
+fn execute_command(command: &str) -> String {
+    Command::new("sh")
+        .arg("-c")
+        .arg(command)
+        .output()
+        .map(|output| {
+            String::from_utf8_lossy(&output.stdout)
+                .trim()
+                .to_string()
+        })
+        .unwrap_or_else(|_| "Command failed".to_string())
+}
+
+#[derive(Deserialize, Debug)]
 struct Config {
     display: DisplayConfig,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 struct DisplayConfig {
-    user_host_format: Option<String>,
-    separator: Option<String>,
-    order: Option<Vec<String>>,
-    os: Option<String>,
-    kernel: Option<String>,
-    cpu: Option<String>,
-    wm: Option<String>,
-    packages: Option<String>,
-    flatpak: Option<String>,
-    ram: Option<String>,
-    uptime: Option<String>,
-    os_age: Option<String>,
-    editor: Option<String>,
-    shell: Option<String>,
-    terminal: Option<String>,
+    items: Vec<ConfigEntry>,
 }
 
-fn format_uptime(uptime_seconds: u64) -> String {
-    let hours = uptime_seconds / 3600;
-    let minutes = (uptime_seconds % 3600) / 60;
-    if hours > 0 {
-        format!("{}h {}m", hours, minutes)
-    } else {
-        format!("{}m", minutes)
-    }
-}
-
-fn format_output(label: &str, value: &str, separator: &str) -> String {
-    format!("{}{}{}", label.bold(), separator, value)
+#[derive(Deserialize, Debug)]
+struct ConfigEntry {
+    key: String,
+    #[serde(rename = "type")]
+    r#type: String,
+    value: String,
 }
 
 fn main() {
-    let config_path = dirs::config_dir()
+    let config_path = config_dir()
         .map(|p| p.join("swiftfetch/config.toml"))
         .unwrap_or_else(|| "config.toml".into());
 
-    let config_data = fs::read_to_string(&config_path).unwrap_or_else(|err| {
-        eprintln!(
-            "Failed to read configuration file at {}: {}",
-            config_path.display(),
-            err
-        );
-        process::exit(1);
-    });
+    let config_data =
+        fs::read_to_string(&config_path).expect("Failed to read config file");
 
-    let config: Config = toml::de::from_str(&config_data).unwrap_or_else(|err| {
-        eprintln!(
-            "Failed to parse configuration file at {}: {}",
-            config_path.display(),
-            err
-        );
-        process::exit(1);
-    });
-
-    let separator = config.display.separator.as_deref().unwrap_or(": ");
-    let default_order = vec![
-        "os", "kernel", "cpu", "wm", "packages", "flatpak", "ram", "uptime", "os_age", "editor",
-        "shell", "terminal",
-    ]
-    .into_iter()
-    .map(String::from)
-    .collect::<Vec<_>>();
-    let order = config.display.order.clone().unwrap_or(default_order);
+    let config: Config = toml::de::from_str(&config_data).expect("Failed to parse config file");
 
     let (
         os_name,
@@ -95,57 +64,65 @@ fn main() {
         terminal,
     ) = get_system_info();
 
-    let user_host = config
-        .display
-        .user_host_format
-        .as_deref()
-        .unwrap_or("{username}@{hostname}")
-        .replace("{username}", &username)
-        .replace("{hostname}", &hostname);
-    println!("\n{}", user_host.bold());
-    
+    let memory_used_gb_str = format!("{:.2}", memory_used_gb);
+    let total_memory_gb_str = format!("{:.2}", total_memory_gb);
+    let pacman_pkg_count_str = pacman_pkg_count.to_string();
+    let flatpak_pkg_count_str = flatpak_pkg_count.to_string();
+    let os_age_str = os_age.to_string();
 
-    let fields = vec![
-        ("os", os_name),
-        ("kernel", kernel_version),
-        ("cpu", cpu_brand),
-        ("wm", wm_de),
-        ("packages", pacman_pkg_count.to_string()),
-        ("flatpak", flatpak_pkg_count.to_string()),
-        (
-            "ram",
-            format!("{:.2} GB / {:.2} GB", memory_used_gb, total_memory_gb),
-        ),
-        ("uptime", format_uptime(uptime_seconds)),
-        ("os_age", os_age),
-        ("editor", editor),
-        ("shell", shell),
-        ("terminal", terminal),
-    
-    ];
+    let hostname_trimmed = hostname.trim().to_string();
 
-    let field_map: std::collections::HashMap<_, _> = fields.into_iter().collect();
+    let memory = format!("{} GB / {} GB", memory_used_gb_str, total_memory_gb_str);
 
-    for field in order {
-        if let Some(value) = field_map.get(field.as_str()) {
-            let label = match field.as_str() {
-                "os" => config.display.os.as_deref().unwrap_or("OS"),
-                "kernel" => config.display.kernel.as_deref().unwrap_or("Kernel"),
-                "cpu" => config.display.cpu.as_deref().unwrap_or("CPU"),
-                "wm" => config.display.wm.as_deref().unwrap_or("WM"),
-                "packages" => config.display.packages.as_deref().unwrap_or("PKGS"),
-                "flatpak" => config.display.flatpak.as_deref().unwrap_or("FLAT"),
-                "ram" => config.display.ram.as_deref().unwrap_or("RAM"),
-                "uptime" => config.display.uptime.as_deref().unwrap_or("Uptime"),
-                "os_age" => config.display.os_age.as_deref().unwrap_or("Age"),
-                "editor" => config.display.editor.as_deref().unwrap_or("Editor"),
-                "shell" => config.display.shell.as_deref().unwrap_or("Shell"),
-                "terminal" => config.display.terminal.as_deref().unwrap_or("Terminal"),
-                _ => continue,
-            };
-            println!("{}", format_output(label, value, separator));
+    let user_info = format!("\x1b[1m{}@{}\x1b[0m", username, hostname_trimmed);
+
+    let uptime_hours = uptime_seconds / 3600;
+    let uptime_minutes = (uptime_seconds % 3600) / 60;
+
+    let uptime_formatted = if uptime_hours > 0 {
+        format!("{}h {:02}m", uptime_hours, uptime_minutes)
+    } else {
+        format!("{}m", uptime_minutes)
+    };
+
+    for entry in config.display.items {
+        if entry.value.is_empty() {
+            println!();
+            continue;
+        }
+
+        let output = match entry.r#type.as_str() {
+            "default" => match entry.value.as_str() {
+                "kernel" => &kernel_version,
+                "os" => &os_name,
+                "cpu" => &cpu_brand,
+                "wm" => &wm_de,
+                "editor" => &editor,
+                "shell" => &shell,
+                "terminal" => &terminal,
+                "username" => &username,
+                "hostname" => &hostname_trimmed,
+                "memory" => &memory,
+                "pacman_pkg_count" => &pacman_pkg_count_str,
+                "flatpak_pkg_count" => &flatpak_pkg_count_str,
+                "uptime_seconds" => &uptime_formatted, // Use formatted uptime
+                "os_age" => &os_age_str,
+                "user_info" => &user_info,
+                _ => "Unknown default value",
+            }
+            .to_string(),
+
+            "text" => entry.value.clone(),
+
+            "command" => execute_command(&entry.value),
+
+            _ => "Invalid type".to_string(),
+        };
+
+        if entry.key == "user_info" {
+            println!("{}", output);
+        } else {
+            println!("\x1b[1m{}\x1b[0m: {}", entry.key, output);
         }
     }
-
-    println!();
 }
