@@ -14,11 +14,20 @@
 # key = ""
 # type = "command"
 # value = "free"
+# color = 
 #
 # Here the key will be the label and the value will be the command that you want to run.
 
 [display]
-#separator = ": "
+separator = ": "
+
+[colors]
+green = "#32CD32"
+blue = "#1E90FF"
+magenta = "#FF00FF"
+yellow = "#FFD700"
+red = "#FF4500"
+cyan = "#00FFFF"
 
 [[display.items]]
 key = ""
@@ -31,64 +40,100 @@ type = "default"
 value = "user_info"
 
 [[display.items]]
-key = "󰣇 ‣ os"
+key = ""
+type = "text"
+value = "┌────────────────── System Information ───────────────────┐"
+color = "yellow"
+
+[[display.items]]
+key = "           󰣇 ‣ os"
 type = "default"
 value = "os"
+color = "yellow"
 
 [[display.items]]
-key = "󰍛 ‣ kernel"
+key = "           󰍛 ‣ kernel"
 type = "default"
 value = "kernel"
+color = "yellow"
 
 [[display.items]]
-key = "󰍛 ‣ cpu"
-type = "default"
-value = "cpu"
-
-[[display.items]]
-key = " ‣ wm"
+key = "            ‣ wm"
 type = "default"
 value = "wm"
+color = "yellow"
 
 [[display.items]]
-key = " ‣ editor"
+key = "            ‣ editor"
 type = "default"
 value = "editor"
+color = "yellow"
 
 [[display.items]]
-key = " ‣ shell"
+key = "            ‣ shell"
 type = "default"
 value = "shell"
+color = "yellow"
 
 [[display.items]]
-key = " ‣ term"
+key = "            ‣ term"
 type = "default"
 value = "terminal"
+color = "yellow"
 
 [[display.items]]
-key = "󰓅 ‣ ram"
-type = "default"
-value = "memory"
-
-[[display.items]]
-key = " ‣ pkgs"
+key = "            ‣ pkgs"
 type = "default"
 value = "pacman_pkg_count"
+color = "yellow"
 
 [[display.items]]
-key = " ‣ flat"
+key = "            ‣ flat"
 type = "default"
 value = "flatpak_pkg_count"
+color = "yellow"
 
 [[display.items]]
-key = " ‣ uptime"
+key = ""
+type = "text"
+value = "├───────────────── Hardware Information ─────────────────┤"
+color = "yellow"
+
+[[display.items]]
+key = "           󰍛 ‣ cpu"
+type = "default"
+value = "cpu"
+color = "yellow"
+
+[[display.items]]
+key = "           󰓅 ‣ ram"
+type = "default"
+value = "memory"
+color = "yellow"
+
+[[display.items]]
+key = ""
+type = "text"
+value = "├───────────────── Uptime Information ───────────────────┤"
+color = "yellow"
+
+[[display.items]]
+key = "            ‣ uptime"
 type = "default"
 value = "uptime_seconds"
+color = "yellow"
 
 [[display.items]]
-key = " ‣ age"
+key = "            ‣ age"
 type = "default"
 value = "os_age"
+color = "yellow"
+
+[[display.items]]
+key = ""
+type = "text"
+value = "└────────────────────────────────────────────────────────┘"
+color = "yellow"
 
 [[display.items]]
 key = ""
