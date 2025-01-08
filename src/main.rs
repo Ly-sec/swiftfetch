@@ -127,9 +127,8 @@ fn main() {
             .as_ref()
             .and_then(|c| config.colors.get(c))
             .map(|hex| hex_to_ansi(hex))
-            .unwrap_or_else(|| "\x1b[0m".to_string()); // Default to reset color if no color is specified
+            .unwrap_or_else(|| "\x1b[0m".to_string());
 
-        // Determine the value to print for this entry
         let output_value = match entry.r#type.as_str() {
             "default" => {
                 match entry.value.as_str() {
@@ -164,19 +163,13 @@ fn main() {
             _ => "Invalid type".to_string(),
         };
 
-        // Add padding to align with the ASCII art
         let padding = " ".repeat(max_ascii_length - ascii_part.len());
 
-        // Print the ASCII art with color applied
         if entry.key.is_empty() || entry.key == "user_info" {
-            // Print ASCII art with color applied
             println!("{}{}{}  {}", colored_ascii_part, padding, color_code, output_value);
         } else {
-            // Print ASCII art and the key with a separator
             println!("\x1b[0m{}{}  {}{}{}\x1b[0m{}", colored_ascii_part, padding, color_code, entry.key, separator, output_value);
         }
-
-        // After printing the ASCII art, reset the color for the system information
         print!("\x1b[0m");
     }
 }
