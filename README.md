@@ -8,7 +8,7 @@
 
 ## Features
 
-- Displays essential system information like OS, kernel version, CPU, RAM usage, and more.
+- Displays Ascii art, essential system information like OS, kernel version, CPU, RAM usage, and more.
 - Easy to configure and extend.
 - Simple, fast, and lightweight.
 
@@ -32,6 +32,9 @@ If you did not set $EDITOR then it will return `nano` as default. Most DEs do th
 You can find the default config right [here](/config/config.toml)
 
 ## Configuration Options
+
+- `ascii_path`: This is currently the only way to display ascii art, I will add proper Ascii art for distros at some point.
+- `ascii_color`: Sets the color of the ascii art.
 
 - `items`: This section defines a list of key-value pairs for the items to be displayed. Each item can have three components:
 
@@ -92,19 +95,24 @@ You can find the default config right [here](/config/config.toml)
 
 ```
 
-lysec@archlinux
-󰣇 ‣ os: Arch Linux
-󰍛 ‣ kernel: 6.12.7-2-cachyos
-󰍛 ‣ cpu: AMD Ryzen 7 7800X3D 8-Core Processor
- ‣ wm: Hyprland
- ‣ editor: nano
- ‣ shell: fish
- ‣ term: ghostty
-󰓅 ‣ ram: 7.17 GB / 30.51 GB
- ‣ pkgs: 1035
- ‣ flat: 0
- ‣ uptime: 2h 31m
- ‣ age: 15 days
+                  -`
+                 .o+`                  lysec@archlinux
+                `ooo/                  ┌────────────────── System Information ───────────────────┐
+               `+oooo:                            󰣇 ‣ os: Arch Linux
+              `+oooooo:                           󰍛 ‣ kernel: 6.12.8-2-cachyos
+              -+oooooo+:                           ‣ wm: Hyprland
+            `/:-:++oooo+:                          ‣ editor: nano
+           `/++++/+++++++:                         ‣ shell: fish
+          `/++++++++++++++:                        ‣ term: ghostty
+         `/+++ooooooooooooo/`                      ‣ pkgs: 1058
+        ./ooosssso++osssssso+`                     ‣ flat: 0
+       .oossssso-````/ossssss+`        ├───────────────── Hardware Information ─────────────────┤
+      -osssssso.      :ssssssso.                  󰍛 ‣ cpu: AMD Ryzen 7 7800X3D 8-Core Processor
+     :osssssss/        osssso+++.                 󰓅 ‣ ram: 5.56 GB / 30.51 GB
+    /ossssssss/        +ssssooo/-      ├───────────────── Uptime Information ───────────────────┤
+  `/ossssso+/:-        -:/+osssso+-                ‣ uptime: 3h 02m
+ `+sso+:-`                 `.-/+oso:               ‣ age: 20 days
+`++:.                           `-/+/  └────────────────────────────────────────────────────────┘
 
 ```
 

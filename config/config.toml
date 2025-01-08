@@ -1,31 +1,13 @@
-# This is the new way of configuring swiftfetch.
-# You're now able to use the "text" and "command" key.
-#
-# Example:
-# [[display.items]]
-# key = ""
-# type = "text"
-# value = ""
-#
-# You can leave the value & key empty for a new line. Else the key will be used as label and the value as text.
-#
-# Example:
-# [[display.items]]
-# key = ""
-# type = "command"
-# value = "free"
-# color = 
-#
-# Here the key will be the label and the value will be the command that you want to run.
-
 [display]
 separator = ": "
+ascii_path = "~/.config/swiftfetch/ascii.txt"
+ascii_color = "yellow"
 
 [colors]
 green = "#32CD32"
 blue = "#1E90FF"
 magenta = "#FF00FF"
-yellow = "#FFD700"
+yellow = "#E09A25"
 red = "#FF4500"
 cyan = "#00FFFF"
 
@@ -135,7 +117,7 @@ type = "text"
 value = "└────────────────────────────────────────────────────────┘"
 color = "yellow"
 
-[[display.items]]
-key = ""
-type = "text"
-value = ""
+[[display.ascii]]
+type = "ascii"
+path = "~/.config/swiftfetch/ascii.txt"
+color = "green"

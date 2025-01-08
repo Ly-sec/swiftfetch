@@ -1,11 +1,11 @@
 use serde::Deserialize;
-use std::{collections::HashMap, fs};
+use std::{collections::HashMap, fs, io::{self, BufRead}};
 use dirs::config_dir;
 mod sys_info;
 use sys_info::get_system_info;
-use toml;
+use shellexpand;
+use std::path::Path;
 
-/// Converts a hex color string (e.g., "#FF4500") to an ANSI escape sequence
 fn hex_to_ansi(hex: &str) -> String {
     if hex.starts_with('#') && hex.len() == 7 {
         if let (Ok(r), Ok(g), Ok(b)) = (
@@ -16,10 +16,9 @@ fn hex_to_ansi(hex: &str) -> String {
             return format!("\x1b[38;2;{};{};{}m", r, g, b);
         }
     }
-    "\x1b[0m".to_string() // Default color reset if invalid
+    "\x1b[0m".to_string()
 }
 
-/// Structs for parsing TOML config
 #[derive(Deserialize, Debug)]
 struct Config {
     display: DisplayConfig,
@@ -30,6 +29,8 @@ struct Config {
 struct DisplayConfig {
     items: Vec<ConfigEntry>,
     separator: Option<String>,
+    ascii_path: Option<String>,
+    ascii_color: String, // Add the field for ASCII color
 }
 
 #[derive(Deserialize, Debug)]
@@ -57,7 +58,6 @@ fn main() {
 
     let separator = config.display.separator.unwrap_or_else(|| ": ".to_string());
 
-    // Get system info
     let (
         os_name,
         kernel_version,
@@ -87,23 +87,52 @@ fn main() {
         format!("{}m", uptime_minutes)
     };
 
+    let ascii_path = shellexpand::tilde(config.display.ascii_path.as_deref().unwrap_or("~/.config/swiftfetch/ascii.txt")).to_string();
+    let ascii_lines: Vec<String> = if Path::new(&ascii_path).exists() {
+        if let Ok(file) = fs::File::open(ascii_path) {
+            io::BufReader::new(file).lines().filter_map(Result::ok).collect()
+        } else {
+            vec![] // If file opens but can't be read, return empty
+        }
+    } else {
+        vec![] // If file doesn't exist, return empty
+    };
+
+    let mut ascii_iter = ascii_lines.iter();
+    let max_ascii_length = ascii_lines.iter().map(|line| line.len()).max().unwrap_or(0);
+
+    // Get the ASCII color from the config (default to white if not set)
+    let ascii_color_code = config
+        .colors
+        .get(&config.display.ascii_color)
+        .map(|hex| hex_to_ansi(hex))
+        .unwrap_or_else(|| "\x1b[0m".to_string()); // Default to reset color if no color is specified
+
     for entry in &config.display.items {
+        let empty_string = String::new();
+        let ascii_part = ascii_iter.next().unwrap_or(&empty_string);
+        
+        // Apply the color to the ASCII part
+        let colored_ascii_part = format!("{}{}", ascii_color_code, ascii_part);
+
+        // If entry value is empty, just print the ASCII part
         if entry.value.is_empty() {
-            println!();
+            println!("{}", colored_ascii_part);
             continue;
         }
 
-        // Get hex color from config and convert it to ANSI
+        // Determine the color for this entry
         let color_code = entry
             .color
             .as_ref()
             .and_then(|c| config.colors.get(c))
             .map(|hex| hex_to_ansi(hex))
-            .unwrap_or_else(|| "\x1b[0m".to_string()); // Default reset if no color found
+            .unwrap_or_else(|| "\x1b[0m".to_string()); // Default to reset color if no color is specified
 
+        // Determine the value to print for this entry
         let output_value = match entry.r#type.as_str() {
             "default" => {
-                let value = match entry.value.as_str() {
+                match entry.value.as_str() {
                     "kernel" => kernel_version.to_string(),
                     "os" => os_name.to_string(),
                     "cpu" => cpu_brand.to_string(),
@@ -120,8 +149,7 @@ fn main() {
                     "os_age" => os_age.to_string(),
                     "user_info" => user_info.clone(),
                     _ => "Unknown default value".to_string(),
-                };
-                value
+                }
             }
             "text" => entry.value.clone(),
             "command" => {
@@ -136,12 +164,19 @@ fn main() {
             _ => "Invalid type".to_string(),
         };
 
+        // Add padding to align with the ASCII art
+        let padding = " ".repeat(max_ascii_length - ascii_part.len());
+
+        // Print the ASCII art with color applied
         if entry.key.is_empty() || entry.key == "user_info" {
-            println!("{}{}", color_code, output_value);
-        } else if entry.key == "user_info" {
-            println!("{}{}", color_code, output_value); // Ensure 'user_info' is colored too
+            // Print ASCII art with color applied
+            println!("{}{}{}  {}", colored_ascii_part, padding, color_code, output_value);
         } else {
-            println!("{}{}{}\x1b[0m{}", color_code, entry.key, separator, output_value);
+            // Print ASCII art and the key with a separator
+            println!("\x1b[0m{}{}  {}{}{}\x1b[0m{}", colored_ascii_part, padding, color_code, entry.key, separator, output_value);
         }
+
+        // After printing the ASCII art, reset the color for the system information
+        print!("\x1b[0m");
     }
 }
