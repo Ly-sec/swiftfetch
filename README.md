@@ -4,7 +4,8 @@
 
 ## Attention
 
-⚠️ Breaking Change: The configuration format has been updated! The new version of swiftfetch will break compatibility with the old config.toml format. The previous configuration options (user_host_format, order, etc.) have been replaced with a new structure. Please update your configuration file by referring to the new format below.
+⚠️ Breaking Changes: `swiftfetch` is quite new so there will be some breaking changes from time to time, for example updates to the config / renaming of config options.
+Please always check the default [config](/config/config.toml) for possible changes if something broke for you. 
 
 ## Features
 
