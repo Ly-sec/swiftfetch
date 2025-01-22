@@ -83,6 +83,7 @@ fn detect_package_manager() -> Option<PackageManager> {
     } else if is_arch_system() {
         Some(PackageManager::Pacman)
     } else {
+        println!("Unsupported Package Manager detected.");
         None
     }
 }
