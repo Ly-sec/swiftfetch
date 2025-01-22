@@ -9,7 +9,7 @@ pub fn get_system_info() -> (
     String, // WM/DE
     f64,    // Memory Used (GB)
     f64,    // Total Memory (GB)
-    usize,  // Pacman Package Count
+    usize,  // Package Count
     usize,  // Flatpak Package Count
     u64,    // Uptime
     String, // OS Age (in days)
@@ -27,10 +27,9 @@ pub fn get_system_info() -> (
     let hostname = read_file("/proc/sys/kernel/hostname").unwrap_or_else(|_| "Unknown".to_string());
     let wm_de = detect_wm_or_de();
 
-    let (pacman_pkg_count, flatpak_pkg_count) = rayon::join(
-        get_pacman_package_count,
-        get_flatpak_package_count,
-    );
+    let flatpak_pkg_count = get_flatpak_package_count();
+
+    let pkg_count = get_package_count();
 
     let os_age = get_os_age().unwrap_or_else(|_| "Unknown".to_string());
 
@@ -39,7 +38,8 @@ pub fn get_system_info() -> (
     let shell = env::var("SHELL")
         .unwrap_or_else(|_| "Unknown".to_string())
         .replace("/usr/bin/", "")
-        .replace("/bin/", "");
+        .replace("/bin/", "")
+        .replace("/run/current-system/sw", "");
 
     let terminal = env::var("TERM")
         .unwrap_or_else(|_| "Unknown".to_string())
@@ -54,7 +54,7 @@ pub fn get_system_info() -> (
         wm_de,
         memory_used_gb,
         total_memory_gb,
-        pacman_pkg_count,
+        pkg_count,
         flatpak_pkg_count,
         uptime,
         os_age,
@@ -64,6 +64,51 @@ pub fn get_system_info() -> (
     )
 }
 
+fn get_package_count() -> usize {
+    match detect_package_manager() {
+        Some(PackageManager::Nix) => get_nix_package_count(),
+        Some(PackageManager::Pacman) => get_pacman_package_count(),
+        None => 0,
+    }
+}
+
+enum PackageManager {
+    Nix,
+    Pacman,
+}
+
+fn detect_package_manager() -> Option<PackageManager> {
+    if is_nix_system() {
+        Some(PackageManager::Nix)
+    } else if is_arch_system() {
+        Some(PackageManager::Pacman)
+    } else {
+        None
+    }
+}
+
+fn is_nix_system() -> bool {
+    Command::new("which")
+        .arg("nix-store")
+        .output()
+        .map(|output| output.status.success())
+        .unwrap_or(false)
+}
+
+fn is_arch_system() -> bool {
+    fs::metadata("/var/lib/pacman/local").is_ok()
+}
+
+fn get_nix_package_count() -> usize {
+    let output = Command::new("sh")
+        .arg("-c")
+        .arg("nix-store --query --requisites /run/current-system | cut -d- -f2- | sort | uniq | wc -l")
+        .output()
+        .expect("Failed to execute nix-store command");
+
+    let output_str = String::from_utf8_lossy(&output.stdout);
+    output_str.trim().parse().unwrap_or(0)
+}
 
 fn detect_wm_or_de() -> String {
     if let Ok(env_var) = env::var("XDG_CURRENT_DESKTOP").or_else(|_| env::var("DESKTOP_SESSION")) {
@@ -125,7 +170,6 @@ fn get_os_age() -> Result<String, std::io::Error> {
     Ok(result)
 }
 
-
 fn read_os_name() -> Result<String, std::io::Error> {
     let os_release = read_file("/etc/os-release")?;
     for line in os_release.lines() {
@@ -180,7 +224,6 @@ fn extract_memory(meminfo: &str, key: &str) -> f64 {
         .and_then(|value| value.parse::<f64>().ok())
         .unwrap_or(0.0)
 }
-
 
 fn read_uptime() -> Result<u64, std::io::Error> {
     let uptime_str = read_file("/proc/uptime")?;
