@@ -1,4 +1,4 @@
-use std::{fs, env, process::Command};
+use std::{fs, env, process::Command, io};
 
 pub fn get_system_info() -> (
     String, // OS Name
@@ -21,19 +21,18 @@ pub fn get_system_info() -> (
     let kernel_version = read_kernel_version().unwrap_or_else(|_| "Unknown".to_string());
     let cpu_brand = read_cpu_info().unwrap_or_else(|_| "Unknown CPU".to_string());
     let uptime = read_uptime().unwrap_or(0);
-    let (total_memory_gb, memory_used_gb) = read_memory_info();
+    let (total_memory_gb, memory_used_gb) = read_memory_info().unwrap_or((0.0, 0.0));
 
     let username = env::var("USER").unwrap_or_else(|_| "Unknown".to_string());
     let hostname = read_file("/proc/sys/kernel/hostname").unwrap_or_else(|_| "Unknown".to_string());
     let wm_de = detect_wm_or_de();
 
-    let flatpak_pkg_count = get_flatpak_package_count();
-
-    let pkg_count = get_package_count();
+    let flatpak_pkg_count = get_flatpak_package_count().unwrap_or(0);
+    let pkg_count = get_package_count().unwrap_or(0);
 
     let os_age = get_os_age().unwrap_or_else(|_| "Unknown".to_string());
 
-    let editor = env::var("EDITOR").unwrap_or("nano".to_string());
+    let editor = env::var("EDITOR").unwrap_or_else(|_| "nano".to_string());
 
     let shell = env::var("SHELL")
         .unwrap_or_else(|_| "Unknown".to_string())
@@ -64,11 +63,11 @@ pub fn get_system_info() -> (
     )
 }
 
-fn get_package_count() -> usize {
+fn get_package_count() -> io::Result<usize> {
     match detect_package_manager() {
         Some(PackageManager::Nix) => get_nix_package_count(),
         Some(PackageManager::Pacman) => get_pacman_package_count(),
-        None => 0,
+        None => Ok(0),
     }
 }
 
@@ -83,7 +82,6 @@ fn detect_package_manager() -> Option<PackageManager> {
     } else if is_arch_system() {
         Some(PackageManager::Pacman)
     } else {
-        println!("Unsupported Package Manager");
         None
     }
 }
@@ -100,15 +98,14 @@ fn is_arch_system() -> bool {
     fs::metadata("/var/lib/pacman/local").is_ok()
 }
 
-fn get_nix_package_count() -> usize {
+fn get_nix_package_count() -> io::Result<usize> {
     let output = Command::new("sh")
         .arg("-c")
         .arg("nix-store --query --requisites /run/current-system | cut -d- -f2- | sort | uniq | wc -l")
-        .output()
-        .expect("Failed to execute nix-store command");
+        .output()?;
 
     let output_str = String::from_utf8_lossy(&output.stdout);
-    output_str.trim().parse().unwrap_or(0)
+    Ok(output_str.trim().parse().unwrap_or(0))
 }
 
 fn detect_wm_or_de() -> String {
@@ -148,7 +145,7 @@ fn capitalize_first_letter(s: &str) -> String {
     }
 }
 
-fn get_os_age() -> Result<String, std::io::Error> {
+fn get_os_age() -> io::Result<String> {
     let output = Command::new("sh")
         .arg("-c")
         .arg(
@@ -167,39 +164,38 @@ fn get_os_age() -> Result<String, std::io::Error> {
         )
         .output()?;
 
-    let result = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    Ok(result)
+    Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
 }
 
-fn read_os_name() -> Result<String, std::io::Error> {
+fn read_os_name() -> io::Result<String> {
     let os_release = read_file("/etc/os-release")?;
     for line in os_release.lines() {
         if line.starts_with("PRETTY_NAME") {
             return Ok(line.split('=').nth(1).unwrap_or("Unknown").trim_matches('"').to_string());
         }
     }
-    Err(std::io::Error::new(std::io::ErrorKind::NotFound, "OS name not found"))
+    Err(io::Error::new(io::ErrorKind::NotFound, "OS name not found"))
 }
 
-fn read_kernel_version() -> Result<String, std::io::Error> {
+fn read_kernel_version() -> io::Result<String> {
     let version_info = read_file("/proc/version")?;
     version_info.split_whitespace().nth(2)
         .map(|v| v.to_string())
-        .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::NotFound, "Kernel version not found"))
+        .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "Kernel version not found"))
 }
 
-fn read_cpu_info() -> Result<String, std::io::Error> {
+fn read_cpu_info() -> io::Result<String> {
     let cpuinfo = read_file("/proc/cpuinfo")?;
     for line in cpuinfo.lines() {
         if line.starts_with("model name") {
             return Ok(line.split(':').nth(1).unwrap_or("Unknown CPU").trim().to_string());
         }
     }
-    Err(std::io::Error::new(std::io::ErrorKind::NotFound, "CPU info not found"))
+    Err(io::Error::new(io::ErrorKind::NotFound, "CPU info not found"))
 }
 
-fn read_memory_info() -> (f64, f64) {
-    let meminfo = read_file("/proc/meminfo").unwrap_or_default();
+fn read_memory_info() -> io::Result<(f64, f64)> {
+    let meminfo = read_file("/proc/meminfo")?;
 
     // Total memory from MemTotal
     let total = extract_memory(&meminfo, "MemTotal");
@@ -214,7 +210,7 @@ fn read_memory_info() -> (f64, f64) {
     let total_gb = total / 1024.0 / 1024.0;
     let used_gb = used / 1024.0 / 1024.0;
 
-    (total_gb, used_gb)
+    Ok((total_gb, used_gb))
 }
 
 fn extract_memory(meminfo: &str, key: &str) -> f64 {
@@ -226,31 +222,21 @@ fn extract_memory(meminfo: &str, key: &str) -> f64 {
         .unwrap_or(0.0)
 }
 
-fn read_uptime() -> Result<u64, std::io::Error> {
+fn read_uptime() -> io::Result<u64> {
     let uptime_str = read_file("/proc/uptime")?;
     let secs = uptime_str.split_whitespace().next().unwrap_or("0").parse().unwrap_or(0.0);
     Ok(secs as u64)
 }
 
-fn read_file(path: &str) -> Result<String, std::io::Error> {
+fn read_file(path: &str) -> io::Result<String> {
     fs::read_to_string(path)
 }
 
-fn get_pacman_package_count() -> usize {
-    fs::read_dir("/var/lib/pacman/local")
-        .map(|entries| entries.filter_map(|e| e.ok()).count())
-        .unwrap_or(0)
+fn get_pacman_package_count() -> io::Result<usize> {
+    Ok(fs::read_dir("/var/lib/pacman/local")?.count())
 }
 
-fn get_flatpak_package_count() -> usize {
+fn get_flatpak_package_count() -> io::Result<usize> {
     let flatpak_dir = "/var/lib/flatpak/app";
-    
-    if let Ok(entries) = fs::read_dir(flatpak_dir) {
-        entries
-            .filter_map(|entry| entry.ok())
-            .filter(|entry| entry.file_type().map_or(false, |ft| ft.is_dir()))
-            .count()
-    } else {
-        0
-    }
+    Ok(fs::read_dir(flatpak_dir)?.count())
 }

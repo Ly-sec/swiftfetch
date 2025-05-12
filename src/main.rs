@@ -5,6 +5,7 @@ mod sys_info;
 use sys_info::get_system_info;
 use shellexpand;
 use std::path::Path;
+use unicode_width::UnicodeWidthStr;
 
 fn hex_to_ansi(hex: &str) -> String {
     if hex.starts_with('#') && hex.len() == 7 {
@@ -30,7 +31,7 @@ struct DisplayConfig {
     items: Vec<ConfigEntry>,
     separator: Option<String>,
     ascii_path: Option<String>,
-    ascii_color: String, // Add the field for ASCII color
+    ascii_color: String,
 }
 
 #[derive(Deserialize, Debug)]
@@ -40,6 +41,7 @@ struct ConfigEntry {
     r#type: String,
     value: String,
     color: Option<String>,
+    value_color: Option<String>,
 }
 
 fn main() {
@@ -92,42 +94,47 @@ fn main() {
         if let Ok(file) = fs::File::open(ascii_path) {
             io::BufReader::new(file).lines().filter_map(Result::ok).collect()
         } else {
-            vec![] // If file opens but can't be read, return empty
+            vec![]
         }
     } else {
-        vec![] // If file doesn't exist, return empty
+        vec![]
     };
 
-    let mut ascii_iter = ascii_lines.iter();
-    let max_ascii_length = ascii_lines.iter().map(|line| line.len()).max().unwrap_or(0);
-
-    // Get the ASCII color from the config (default to white if not set)
+    let max_ascii_length = ascii_lines.iter().map(|line| UnicodeWidthStr::width(line.as_str())).max().unwrap_or(0);
     let ascii_color_code = config
         .colors
         .get(&config.display.ascii_color)
         .map(|hex| hex_to_ansi(hex))
-        .unwrap_or_else(|| "\x1b[0m".to_string()); // Default to reset color if no color is specified
+        .unwrap_or_else(|| "\x1b[0m".to_string());
 
-    for entry in &config.display.items {
-        let empty_string = String::new();
-        let ascii_part = ascii_iter.next().unwrap_or(&empty_string);
-        
-        // Apply the color to the ASCII part
-        let colored_ascii_part = format!("{}{}", ascii_color_code, ascii_part);
+    for (i, entry) in config.display.items.iter().enumerate() {
+        let ascii_line = if i < ascii_lines.len() {
+            &ascii_lines[i]
+        } else {
+            ""
+        };
 
-        // If entry value is empty, just print the ASCII part
+        let padded_ascii = format!("{:<width$}", ascii_line, width = max_ascii_length);
+        let colored_ascii = format!("{}{}", ascii_color_code, padded_ascii);
+
         if entry.value.is_empty() {
-            println!("{}", colored_ascii_part);
+            println!("{}", colored_ascii);
             continue;
         }
 
-        // Determine the color for this entry
-        let color_code = entry
+        let key_color_code = entry
             .color
             .as_ref()
             .and_then(|c| config.colors.get(c))
             .map(|hex| hex_to_ansi(hex))
             .unwrap_or_else(|| "\x1b[0m".to_string());
+
+        let value_color_code = entry
+            .value_color
+            .as_ref()
+            .and_then(|c| config.colors.get(c))
+            .map(|hex| hex_to_ansi(hex))
+            .unwrap_or_else(|| key_color_code.clone());
 
         let output_value = match entry.r#type.as_str() {
             "default" => {
@@ -163,13 +170,25 @@ fn main() {
             _ => "Invalid type".to_string(),
         };
 
-        let padding = " ".repeat(max_ascii_length - ascii_part.len());
-
         if entry.key.is_empty() || entry.key == "user_info" {
-            println!("{}{}{}  {}", colored_ascii_part, padding, color_code, output_value);
+            println!("{}  {}{}\x1b[0m", colored_ascii, value_color_code, output_value);
         } else {
-            println!("\x1b[0m{}{}  {}{}{}\x1b[0m{}", colored_ascii_part, padding, color_code, entry.key, separator, output_value);
+            println!("{}  {}{}\x1b[0m{}{}{}\x1b[0m", 
+                colored_ascii, 
+                key_color_code, 
+                entry.key, 
+                separator, 
+                value_color_code,
+                output_value
+            );
         }
-        print!("\x1b[0m");
     }
+
+    for i in config.display.items.len()..ascii_lines.len() {
+        let padded_ascii = format!("{:<width$}", ascii_lines[i], width = max_ascii_length);
+        println!("{}{}", ascii_color_code, padded_ascii);
+    }
+
+    // Reset colors at the end
+    print!("\x1b[0m");
 }
