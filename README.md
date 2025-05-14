@@ -5,7 +5,7 @@
 ## Attention
 
 ⚠️ Breaking Changes: `swiftfetch` is quite new so there will be some breaking changes from time to time, for example updates to the config / renaming of config options.
-Please always check the default [config](/config/config.toml) for possible changes if something broke for you. 
+Please always check the default [config](/config/config.toml) for possible changes if something broke for you.
 
 ## Features
 
@@ -19,11 +19,84 @@ Using the AUR:
 
 `yay -S swiftfetch` (or any other AUR helper)
 
-To install swiftfetch, use the following command from the root of the project:
+To install swiftfetch straight from the repo, use the following command from the root of the project:
 
 `cargo install --path .`
 
 This command will install the program and automatically copy the default config.toml to ~/.config/swiftfetch/config.toml.
+
+# 🧊 Using `swiftfetch` as a Nix Flake
+
+You can use `swiftfetch` as a Nix flake input in your **system configuration**, **Home Manager setup**, or simply run it with `nix run`.
+
+---
+
+## 1. Add `swiftfetch` as a flake input
+
+In your top-level `flake.nix`:
+
+```nix
+{
+  inputs = {
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    swiftfetch = {
+      url = "github:lysec/swiftfetch";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+  };
+
+  outputs = { self, nixpkgs, swiftfetch, ... }: {
+    # For example, you can forward swiftfetch outputs if needed:
+    packages = {
+      inherit (swiftfetch.packages.${system}) swiftfetch;
+    };
+  };
+}
+```
+
+---
+
+## 2. Use in Home Manager
+
+To add `swiftfetch` to your Home Manager config:
+
+```nix
+{
+  programs.home-manager.enable = true;
+
+  home.packages = [
+    inputs.swiftfetch.packages.${pkgs.system}.swiftfetch
+  ];
+}
+```
+
+> Tip: You may need to pass `inputs` and `pkgs` into your Home Manager module depending on how you’ve structured your flake.
+
+---
+
+## 3. Run directly
+
+You can run `swiftfetch` directly with:
+
+```sh
+nix run github:lysec/swiftfetch
+```
+
+---
+
+## 4. Add to systemPackages
+
+If you’re using NixOS and want to install `swiftfetch` system-wide:
+
+```nix
+{
+  environment.systemPackages = with pkgs; [
+    swiftfetch
+  ];
+}
+```
+
+> Make sure you’ve added the flake input and forwarded the `swiftfetch` package as shown above.
 
 ## Configuration
 
@@ -47,6 +120,7 @@ You can find the default config right [here](/config/config.toml)
   - **`value`**: This is the content associated with the key. The content can be a static text, a command to run, or a dynamic value, depending on the `type`.
 
   ### Example of `text` type
+
   If you want to display a custom message, you can use the `text` type. Here, the `key` will be the label and the `value` will be the custom text:
 
   ```toml
@@ -63,6 +137,7 @@ You can find the default config right [here](/config/config.toml)
   ```
 
   ### Example of `command` type
+
   If you want to run a command and display its output, you can use the `command` type. Here, the `key` will be the label and the `value` will be the shell command to execute:
 
   ```toml
@@ -79,6 +154,7 @@ You can find the default config right [here](/config/config.toml)
   ```
 
   ### Empty `key` and `value`
+
   If you want to add a blank line, leave both the `key` and `value` empty. This will simply create an empty line in the output:
 
   ```toml
@@ -90,11 +166,9 @@ You can find the default config right [here](/config/config.toml)
 
   This will output a blank line.
 
-
-
 ## Example Output
 
-```
+`````
 
                   -`
                  .o+`                  lysec@archlinux
@@ -115,11 +189,12 @@ You can find the default config right [here](/config/config.toml)
  `+sso+:-`                 `.-/+oso:               ‣ age: 20 days
 `++:.                           `-/+/  └────────────────────────────────────────────────────────┘
 
-```
+`````
 
 ## Contributing
 
 If you'd like to contribute to swiftfetch, feel free to fork the repo and submit a pull request. Contributions are always welcome!
 
 ## License
+
 This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.

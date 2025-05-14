@@ -10,6 +10,7 @@ magenta = "#FF00FF"
 yellow = "#E09A25"
 red = "#FF4500"
 cyan = "#00FFFF"
+white = "#FFFFFF"
 
 [[display.items]]
 key = ""
@@ -20,6 +21,7 @@ value = ""
 key = "user_info"
 type = "default"
 value = "user_info"
+value_color = "white"
 
 [[display.items]]
 key = ""
@@ -32,48 +34,56 @@ key = "           󰣇 ‣ os"
 type = "default"
 value = "os"
 color = "yellow"
+value_color = "white"
 
 [[display.items]]
 key = "           󰍛 ‣ kernel"
 type = "default"
 value = "kernel"
 color = "yellow"
+value_color = "white"
 
 [[display.items]]
 key = "            ‣ wm"
 type = "default"
 value = "wm"
 color = "yellow"
+value_color = "white"
 
 [[display.items]]
 key = "            ‣ editor"
 type = "default"
 value = "editor"
 color = "yellow"
+value_color = "white"
 
 [[display.items]]
 key = "            ‣ shell"
 type = "default"
 value = "shell"
 color = "yellow"
+value_color = "white"
 
 [[display.items]]
 key = "            ‣ term"
 type = "default"
 value = "terminal"
 color = "yellow"
+value_color = "white"
 
 [[display.items]]
 key = "            ‣ pkgs"
 type = "default"
 value = "pkg_count"
 color = "yellow"
+value_color = "white"
 
 [[display.items]]
 key = "            ‣ flat"
 type = "default"
 value = "flatpak_pkg_count"
 color = "yellow"
+value_color = "white"
 
 [[display.items]]
 key = ""
@@ -86,12 +96,14 @@ key = "           󰍛 ‣ cpu"
 type = "default"
 value = "cpu"
 color = "yellow"
+value_color = "white"
 
 [[display.items]]
 key = "           󰓅 ‣ ram"
 type = "default"
 value = "memory"
 color = "yellow"
+value_color = "white"
 
 [[display.items]]
 key = ""
@@ -104,12 +116,14 @@ key = "            ‣ uptime"
 type = "default"
 value = "uptime_seconds"
 color = "yellow"
+value_color = "white"
 
 [[display.items]]
 key = "            ‣ age"
 type = "default"
 value = "os_age"
 color = "yellow"
+value_color = "white"
 
 [[display.items]]
 key = ""

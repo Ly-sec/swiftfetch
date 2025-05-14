@@ -44,7 +44,30 @@ struct ConfigEntry {
     value_color: Option<String>,
 }
 
+fn ensure_user_config_exists() {
+    let user_config_path = config_dir()
+        .map(|p| p.join("swiftfetch/config.toml"))
+        .expect("Could not determine config dir");
+
+    if !user_config_path.exists() {
+        let default_config_path = "/usr/share/swiftfetch/config.toml";
+
+        if let Some(parent) = user_config_path.parent() {
+            fs::create_dir_all(parent).unwrap();
+        }
+
+        if Path::new(default_config_path).exists() {
+            fs::copy(default_config_path, &user_config_path).unwrap();
+            println!("Created config at {}", user_config_path.display());
+        } else {
+            eprintln!("Missing default config at {}", default_config_path);
+        }
+    }
+}
+
 fn main() {
+    ensure_user_config_exists();
+
     let user_config_path = config_dir()
         .map(|p| p.join("swiftfetch/config.toml"))
         .unwrap_or_else(|| "config.toml".into());
