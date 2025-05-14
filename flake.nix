@@ -36,33 +36,23 @@
             '';
 
             postInstall = ''
-              mkdir -p $out/bin
-              mv $out/bin/swiftfetch $out/bin/.swiftfetch-wrapped
-              
-              cat > $out/bin/swiftfetch <<EOF
-              #!${pkgs.bash}/bin/bash
-              CONFIG_DIR="\$HOME/.config/swiftfetch"
+  mkdir -p $out/bin
+  mv $out/bin/swiftfetch $out/bin/.swiftfetch-wrapped
 
-              if [ ! -d "\$CONFIG_DIR" ]; then
-                ${pkgs.coreutils}/bin/mkdir -p "\$CONFIG_DIR"
-                ${pkgs.coreutils}/bin/chmod 700 "\$CONFIG_DIR"
-              fi
+  cat > $out/bin/swiftfetch <<EOF
+  #!${pkgs.bash}/bin/bash
+  CONFIG_DIR="\$HOME/.config/swiftfetch"
 
-              if [ ! -f "\$CONFIG_DIR/config.toml" ]; then
-                ${pkgs.coreutils}/bin/cp ${./config/config.toml} "\$CONFIG_DIR/config.toml"
-                ${pkgs.coreutils}/bin/chmod 600 "\$CONFIG_DIR/config.toml"
-              fi
+  mkdir -p "\$CONFIG_DIR"
 
-              if [ ! -f "\$CONFIG_DIR/ascii.txt" ]; then
-                ${pkgs.coreutils}/bin/cp ${./config/ascii.txt} "\$CONFIG_DIR/ascii.txt"
-                ${pkgs.coreutils}/bin/chmod 600 "\$CONFIG_DIR/ascii.txt"
-              fi
+  [ -f "\$CONFIG_DIR/config.toml" ] || cp "${./config/config.toml}" "\$CONFIG_DIR/config.toml"
+  [ -f "\$CONFIG_DIR/ascii.txt" ] || cp "${./config/ascii.txt}" "\$CONFIG_DIR/ascii.txt"
 
-              exec "$out/bin/.swiftfetch-wrapped" "\$@"
-              EOF
-              
-              chmod +x $out/bin/swiftfetch
-            '';
+  exec "$out/bin/.swiftfetch-wrapped" "\$@"
+  EOF
+
+  chmod +x $out/bin/swiftfetch
+'';
 
             meta = with pkgs.lib; {
               description = "A fast and efficient fetch utility written in Rust";
