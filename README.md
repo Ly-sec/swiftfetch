@@ -40,7 +40,7 @@ In your top-level `flake.nix`:
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     swiftfetch = {
-      url = "github:lysec/swiftfetch";
+      url = "github:ly-sec/swiftfetch";
       inputs.nixpkgs.follows = "nixpkgs";
     };
   };
@@ -79,7 +79,7 @@ To add `swiftfetch` to your Home Manager config:
 You can run `swiftfetch` directly with:
 
 ```sh
-nix run github:lysec/swiftfetch
+nix run github:ly-sec/swiftfetch
 ```
 
 ---
