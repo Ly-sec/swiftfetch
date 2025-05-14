@@ -130,8 +130,3 @@ key = ""
 type = "text"
 value = "└────────────────────────────────────────────────────────┘"
 color = "yellow"
-
-[[display.ascii]]
-type = "ascii"
-path = "~/.config/swiftfetch/ascii.txt"
-color = "green"
