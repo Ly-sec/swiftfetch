@@ -36,23 +36,31 @@
             '';
 
             postInstall = ''
-  mkdir -p $out/bin
-  mv $out/bin/swiftfetch $out/bin/.swiftfetch-wrapped
+              mkdir -p $out/bin
+              mv $out/bin/swiftfetch $out/bin/.swiftfetch-wrapped
 
-  cat > $out/bin/swiftfetch <<EOF
-  #!${pkgs.bash}/bin/bash
-  CONFIG_DIR="\$HOME/.config/swiftfetch"
+              cat > $out/bin/swiftfetch <<EOF
+              #!${pkgs.bash}/bin/bash
+              CONFIG_DIR="\$HOME/.config/swiftfetch"
 
-  mkdir -p "\$CONFIG_DIR"
+              mkdir -p "\$CONFIG_DIR"
 
-  [ -f "\$CONFIG_DIR/config.toml" ] || cp "${./config/config.toml}" "\$CONFIG_DIR/config.toml"
-  [ -f "\$CONFIG_DIR/ascii.txt" ] || cp "${./config/ascii.txt}" "\$CONFIG_DIR/ascii.txt"
+              install_if_missing() {
+                local file="\$1"
+                local src="\$2"
+                if [ ! -f "\$CONFIG_DIR/\$file" ]; then
+                  cp "\$src" "\$CONFIG_DIR/\$file"
+                fi
+              }
 
-  exec "$out/bin/.swiftfetch-wrapped" "\$@"
-  EOF
+              install_if_missing "config.toml" "${./config/config.toml}"
+              install_if_missing "ascii.txt" "${./config/ascii.txt}"
 
-  chmod +x $out/bin/swiftfetch
-'';
+              exec "$out/bin/.swiftfetch-wrapped" "\$@"
+              EOF
+
+              chmod +x $out/bin/swiftfetch
+            '';
 
             meta = with pkgs.lib; {
               description = "A fast and efficient fetch utility written in Rust";
