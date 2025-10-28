@@ -1,132 +1,181 @@
 [display]
 separator = ": "
-ascii_path = "~/.config/swiftfetch/ascii.txt"
-ascii_color = "yellow"
+show_all_gpus = true
+
+use_default_ascii = true
+#ascii_path = "~/.config/swiftfetch/ascii/void.txt"
+ascii_color = "info"
 
 [colors]
-green = "#32CD32"
-blue = "#1E90FF"
-magenta = "#FF00FF"
-yellow = "#E09A25"
-red = "#FF4500"
-cyan = "#00FFFF"
-white = "#FFFFFF"
+# Available colors: black, red, green, yellow, blue, magenta, cyan, white
+# Bright versions: bright_black, bright_red, bright_green, bright_yellow, bright_blue, bright_magenta, bright_cyan, bright_white  
+# Aliases: gray/grey, orange, purple, violet, reset/default
+# Custom hex colors are still supported: #FF0000
 
+primary = "yellow"           # Main accent color  
+secondary = "bright_yellow"  # Secondary accent
+text = "white"               # Main text color
+accent = "cyan"              # Special accents
+success = "green"            # Success indicators  
+warning = "bright_red"       # Warnings/alerts
+info = "blue"                # Information
+
+# Empty line for spacing
 [[display.items]]
 key = ""
 type = "text"
 value = ""
 
+# User information
 [[display.items]]
 key = "user_info"
 type = "default"
 value = "user_info"
-value_color = "white"
+value_color = "text"
 
+# System Information Section
 [[display.items]]
 key = ""
 type = "text"
 value = "┌────────────────── System Information ───────────────────┐"
-color = "yellow"
+color = "primary"
 
 [[display.items]]
 key = "           󰣇 ‣ os"
 type = "default"
 value = "os"
-color = "yellow"
-value_color = "white"
+color = "primary"
+value_color = "text"
 
 [[display.items]]
 key = "           󰍛 ‣ kernel"
 type = "default"
 value = "kernel"
-color = "yellow"
-value_color = "white"
+color = "primary"
+value_color = "text"
 
 [[display.items]]
 key = "            ‣ wm"
 type = "default"
 value = "wm"
-color = "yellow"
-value_color = "white"
+color = "primary"
+value_color = "text"
 
 [[display.items]]
 key = "            ‣ editor"
 type = "default"
 value = "editor"
-color = "yellow"
-value_color = "white"
+color = "primary"
+value_color = "text"
 
 [[display.items]]
 key = "            ‣ shell"
 type = "default"
 value = "shell"
-color = "yellow"
-value_color = "white"
+color = "primary"
+value_color = "text"
 
 [[display.items]]
 key = "            ‣ term"
 type = "default"
 value = "terminal"
-color = "yellow"
-value_color = "white"
+color = "primary"
+value_color = "text"
 
 [[display.items]]
 key = "            ‣ pkgs"
 type = "default"
 value = "pkg_count"
-color = "yellow"
-value_color = "white"
+color = "primary"
+value_color = "text"
 
 [[display.items]]
 key = "            ‣ flat"
 type = "default"
 value = "flatpak_pkg_count"
-color = "yellow"
-value_color = "white"
+color = "primary"
+value_color = "text"
 
+# Hardware Information Section
 [[display.items]]
 key = ""
 type = "text"
 value = "├───────────────── Hardware Information ─────────────────┤"
-color = "yellow"
+color = "primary"
 
 [[display.items]]
 key = "           󰍛 ‣ cpu"
 type = "default"
 value = "cpu"
-color = "yellow"
-value_color = "white"
+color = "primary"
+value_color = "text"
+
+[[display.items]]
+key = "           󰢮 ‣ gpu"
+type = "default"
+value = "gpu"
+color = "primary"
+value_color = "text"
 
 [[display.items]]
 key = "           󰓅 ‣ ram"
 type = "default"
 value = "memory"
-color = "yellow"
-value_color = "white"
+color = "primary"
+value_color = "text"
 
+[[display.items]]
+key = "           󰋊 ‣ disk"
+type = "default"
+value = "disk_usage"
+color = "primary"
+value_color = "text"
+
+# System Information Section
+[[display.items]]
+key = ""
+type = "text"
+value = "├─────────────────── System Info ────────────────────────┤"
+color = "primary"
+
+[[display.items]]
+key = "           󰐧 ‣ init"
+type = "default"
+value = "init_system"
+color = "primary"
+value_color = "text"
+
+[[display.items]]
+key = "           󰂄 ‣ battery"
+type = "default"
+value = "battery"
+color = "primary"
+value_color = "text"
+
+# Uptime Information Section
 [[display.items]]
 key = ""
 type = "text"
 value = "├───────────────── Uptime Information ───────────────────┤"
-color = "yellow"
+color = "primary"
 
 [[display.items]]
 key = "            ‣ uptime"
 type = "default"
 value = "uptime_seconds"
-color = "yellow"
-value_color = "white"
+color = "primary"
+value_color = "text"
 
 [[display.items]]
 key = "            ‣ age"
 type = "default"
 value = "os_age"
-color = "yellow"
-value_color = "white"
+color = "primary"
+value_color = "text"
 
+# Closing box
 [[display.items]]
 key = ""
 type = "text"
 value = "└────────────────────────────────────────────────────────┘"
-color = "yellow"
+color = "primary"
