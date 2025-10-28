@@ -118,6 +118,8 @@ You can find the default config right [here](/config/config.toml)
     - `text`: A custom static value that you define.
     - `command`: Executes a shell command and displays the result.
   - **`value`**: This is the content associated with the key. The content can be a static text, a command to run, or a dynamic value, depending on the `type`.
+  - `color`: Sets the color of the key.
+  - `value_color`: Sets the color of the value color (aka the part after the separator).
 
   ### Example of `text` type
 
