@@ -272,8 +272,8 @@ fn parse_nvidia_gpu(description: &str) -> Option<String> {
             .split(" (")
             .next()
             .unwrap_or(after_geforce);
-        
-        return Some(geforce_part.trim().to_string());
+        let cleaned = geforce_part.trim().trim_end_matches(']').to_string();
+        return Some(cleaned);
     }
     
     // Look for bracket content
