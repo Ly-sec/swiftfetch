@@ -58,21 +58,51 @@ pub fn collect_disk_info() -> Result<DiskInfo> {
 
 // Hardware detection functions
 fn read_cpu_info() -> Result<String> {
-    let cpuinfo = read_file_safe("/proc/cpuinfo")?;
-    for line in cpuinfo.lines() {
+    use std::io::{BufRead, BufReader};
+    use std::fs::File;
+    
+    // Read line by line to find model name early (stops after first CPU)
+    let file = File::open("/proc/cpuinfo")?;
+    let reader = BufReader::new(file);
+    
+    for line in reader.lines() {
+        let line = line?;
         if line.starts_with("model name") {
-            return Ok(extract_after_colon(line).unwrap_or("Unknown CPU".to_string()));
+            return Ok(extract_after_colon(&line).unwrap_or("Unknown CPU".to_string()));
         }
     }
     Err(crate::error::SwiftfetchError::Detection("CPU info not found".to_string()))
 }
 
 fn read_memory_info() -> Result<(f64, f64)> {
-    let meminfo = read_file_safe("/proc/meminfo")?;
-
-    // Extract memory values
-    let total = extract_memory(&meminfo, "MemTotal");
-    let available = extract_memory(&meminfo, "MemAvailable");
+    use std::io::{BufRead, BufReader};
+    use std::fs::File;
+    
+    // Read line by line to extract memory values early
+    let file = File::open("/proc/meminfo")?;
+    let reader = BufReader::new(file);
+    
+    let mut total: f64 = 0.0;
+    let mut available: f64 = 0.0;
+    let mut found_total = false;
+    let mut found_available = false;
+    
+    for line in reader.lines() {
+        let line = line?;
+        
+        if !found_total && line.starts_with("MemTotal") {
+            total = extract_memory_from_line(&line);
+            found_total = true;
+        } else if !found_available && line.starts_with("MemAvailable") {
+            available = extract_memory_from_line(&line);
+            found_available = true;
+        }
+        
+        // Early exit if we found both
+        if found_total && found_available {
+            break;
+        }
+    }
 
     // Calculate used memory
     let used = total - available;
@@ -84,22 +114,55 @@ fn read_memory_info() -> Result<(f64, f64)> {
     Ok((total_gb, used_gb))
 }
 
-fn extract_memory(meminfo: &str, field: &str) -> f64 {
-    for line in meminfo.lines() {
-        if line.starts_with(field) {
-            if let Some(value_str) = line.split(':').nth(1) {
-                let value_str = value_str.trim().replace(" kB", "");
-                return value_str.parse().unwrap_or(0.0);
-            }
-        }
+fn extract_memory_from_line(line: &str) -> f64 {
+    if let Some(value_str) = line.split(':').nth(1) {
+        let value_str = value_str.trim().replace(" kB", "");
+        return value_str.parse().unwrap_or(0.0);
     }
     0.0
 }
 
 fn get_disk_usage() -> Result<String> {
-    let output = run_command("df", &["-h", "/"])?;
+    use std::ffi::CString;
+    use libc;
     
-    for line in output.lines().skip(1) { // Skip header
+    // Use statvfs syscall directly (faster than df command)
+    unsafe {
+        let path = CString::new("/").unwrap();
+        let mut stat: libc::statvfs = std::mem::zeroed();
+        
+        if libc::statvfs(path.as_ptr(), &mut stat) == 0 {
+            let total_bytes = stat.f_blocks.wrapping_mul(stat.f_frsize as u64);
+            let available_bytes = stat.f_bavail.wrapping_mul(stat.f_frsize as u64);
+            let used_bytes = total_bytes.saturating_sub(available_bytes);
+            
+            let format_size = |bytes: u64| {
+                if bytes >= 1_000_000_000_000 {
+                    format!("{:.1}T", bytes as f64 / 1_000_000_000_000.0)
+                } else if bytes >= 1_000_000_000 {
+                    format!("{:.1}G", bytes as f64 / 1_000_000_000.0)
+                } else if bytes >= 1_000_000 {
+                    format!("{:.1}M", bytes as f64 / 1_000_000.0)
+                } else {
+                    format!("{}K", bytes / 1024)
+                }
+            };
+            
+            let total = format_size(total_bytes);
+            let used = format_size(used_bytes);
+            let percent = if total_bytes > 0 {
+                ((used_bytes as f64 / total_bytes as f64) * 100.0) as u64
+            } else {
+                0
+            };
+            
+            return Ok(format!("{} / {} ({}%)", used, total, percent));
+        }
+    }
+    
+    // Fallback to df command if statvfs fails
+    let output = run_command("df", &["-h", "/"])?;
+    for line in output.lines().skip(1) {
         let parts: Vec<&str> = line.split_whitespace().collect();
         if parts.len() >= 4 {
             let used = parts[2];
@@ -113,9 +176,46 @@ fn get_disk_usage() -> Result<String> {
 }
 
 fn detect_all_gpus() -> Result<Vec<String>> {
-    // Try lspci first (most reliable)
+    // Use direct sysfs reading (faster than lspci subprocess)
+    let mut gpus = Vec::new();
+    
+    if let Ok(entries) = fs::read_dir("/sys/class/drm") {
+        for entry in entries {
+            if let Ok(entry) = entry {
+                let path = entry.path();
+                if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
+                    if name.starts_with("card") && !name.contains("-") {
+                        // Read device name directly from sysfs
+                        if let Ok(device_name) = fs::read_to_string(path.join("device/name")) {
+                            let name = device_name.trim();
+                            if !name.is_empty() {
+                                // Determine if integrated or discrete
+                                let gpu_type = if is_integrated_gpu(&path) {
+                                    " [Integrated]"
+                                } else {
+                                    " [Discrete]"
+                                };
+                                gpus.push(format!("{}{}", name, gpu_type));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    if !gpus.is_empty() {
+        // Sort GPUs: discrete first, then integrated
+        gpus.sort_by(|a, b| {
+            let a_integrated = a.contains("Integrated");
+            let b_integrated = b.contains("Integrated");
+            a_integrated.cmp(&b_integrated)
+        });
+        return Ok(gpus);
+    }
+    
+    // Fallback to lspci if sysfs fails
     if let Ok(output) = run_command("lspci", &[]) {
-        // Look for VGA compatible controllers and 3D controllers
         let gpu_lines: Vec<&str> = output
             .lines()
             .filter(|line| {
@@ -127,7 +227,6 @@ fn detect_all_gpus() -> Result<Vec<String>> {
         
         if !gpu_lines.is_empty() {
             let mut gpus = Vec::new();
-            
             for line in gpu_lines {
                 if let Some(gpu_info) = parse_gpu_from_lspci(line) {
                     gpus.push(gpu_info);
@@ -135,46 +234,35 @@ fn detect_all_gpus() -> Result<Vec<String>> {
             }
             
             if !gpus.is_empty() {
-                // Sort GPUs: discrete first, then integrated
                 gpus.sort_by(|a, b| {
-                    let a_integrated = a.to_lowercase().contains("integrated");
-                    let b_integrated = b.to_lowercase().contains("integrated");
+                    let a_integrated = a.contains("Integrated");
+                    let b_integrated = b.contains("Integrated");
                     a_integrated.cmp(&b_integrated)
                 });
-                
                 return Ok(gpus);
             }
         }
     }
     
-    // Fallback: try to read from /sys/class/drm
-    if let Ok(entries) = fs::read_dir("/sys/class/drm") {
-        for entry in entries {
-            if let Ok(entry) = entry {
-                let path = entry.path();
-                if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
-                    if name.starts_with("card") && !name.contains("-") {
-                        let device_path = path.join("device/vendor");
-                        let product_path = path.join("device/device");
-                        
-                        if let (Ok(vendor), Ok(device)) = (
-                            fs::read_to_string(&device_path),
-                            fs::read_to_string(&product_path)
-                        ) {
-                            let vendor_id = vendor.trim();
-                            let device_id = device.trim();
-                            
-                            if let Some(gpu_name) = lookup_gpu_by_ids(vendor_id, device_id) {
-                                return Ok(vec![gpu_name]);
-                            }
-                        }
-                    }
-                }
-            }
+    Ok(vec![])
+}
+
+fn is_integrated_gpu(card_path: &std::path::Path) -> bool {
+    // Check vendor - Intel GPUs are usually integrated
+    if let Ok(vendor) = fs::read_to_string(card_path.join("device/vendor")) {
+        if vendor.trim() == "0x8086" {
+            return true;
         }
     }
     
-    Ok(vec![])
+    // Check if it's on a typical integrated GPU bus (00:02.0)
+    if let Ok(pci_path) = fs::read_to_string(card_path.join("device")) {
+        if pci_path.contains("0000:00:02") {
+            return true;
+        }
+    }
+    
+    false
 }
 
 fn parse_gpu_from_lspci(line: &str) -> Option<String> {
@@ -224,19 +312,17 @@ fn extract_gpu_model_name(gpu_description: &str) -> Option<String> {
 }
 
 fn parse_amd_gpu(description: &str) -> Option<String> {
-    // First try to get exact model from device ID
-    if let Ok(exact_model) = get_exact_amd_model_from_sysfs() {
-        return Some(exact_model);
-    }
-    
     // Look for brackets with Radeon content
     if let Some(bracket_start) = description.rfind('[') {
         if let Some(bracket_end) = description[bracket_start..].find(']') {
             let bracket_content = &description[bracket_start + 1..bracket_start + bracket_end];
             if bracket_content.contains("Radeon") {
-                // If it contains a range like "RX 7700 XT / 7800 XT", try to determine which one
+                // If it contains a range like "RX 7700 XT / 7800 XT", take the higher-end model
                 if bracket_content.contains(" / ") {
-                    return Some(format!("AMD {}", resolve_amd_gpu_range(bracket_content)));
+                    let parts: Vec<&str> = bracket_content.split(" / ").collect();
+                    if let Some(last_part) = parts.last() {
+                        return Some(format!("AMD {}", last_part.trim()));
+                    }
                 } else {
                     return Some(format!("AMD {}", bracket_content));
                 }
@@ -256,6 +342,23 @@ fn parse_amd_gpu(description: &str) -> Option<String> {
             .unwrap_or(after_radeon);
         
         return Some(format!("AMD {}", radeon_part.trim()));
+    }
+    
+    // Check for integrated AMD GPUs by codename (Raphael, Renoir, etc.)
+    if description.contains("Raphael") || description.contains("Renoir") || 
+       description.contains("Cezanne") || description.contains("Barcelo") {
+        return Some("AMD Raphael".to_string());
+    }
+    
+    // Extract any codename from brackets if no Radeon found
+    if let Some(bracket_start) = description.rfind('[') {
+        if let Some(bracket_end) = description[bracket_start..].find(']') {
+            let bracket_content = &description[bracket_start + 1..bracket_start + bracket_end];
+            // Skip vendor brackets like [AMD/ATI]
+            if !bracket_content.contains('/') && bracket_content.len() > 2 {
+                return Some(format!("AMD {}", bracket_content));
+            }
+        }
     }
     
     Some("AMD GPU".to_string())
@@ -324,75 +427,3 @@ fn detect_gpu_type(lspci_line: &str, gpu_name: &str) -> String {
     }
 }
 
-fn get_exact_amd_model_from_sysfs() -> Result<String> {
-    // Try to read the exact model from sysfs using device IDs
-    if let Ok(entries) = fs::read_dir("/sys/class/drm") {
-        for entry in entries {
-            if let Ok(entry) = entry {
-                let path = entry.path();
-                if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
-                    if name.starts_with("card") && !name.contains("-") {
-                        let device_path = path.join("device/device");
-                        let vendor_path = path.join("device/vendor");
-                        
-                        if let (Ok(device_id), Ok(vendor_id)) = (
-                            fs::read_to_string(&device_path),
-                            fs::read_to_string(&vendor_path)
-                        ) {
-                            let device_id = device_id.trim();
-                            let vendor_id = vendor_id.trim();
-                            
-                            // Check if it's AMD (0x1002)
-                            if vendor_id == "0x1002" {
-                                if let Some(exact_model) = amd_device_id_to_name(device_id) {
-                                    return Ok(format!("AMD {}", exact_model));
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-    Err(crate::error::SwiftfetchError::Detection("AMD GPU not found in sysfs".to_string()))
-}
-
-fn amd_device_id_to_name(device_id: &str) -> Option<String> {
-    match device_id {
-        // RX 7800 XT
-        "0x7480" => Some("Radeon RX 7800 XT".to_string()),
-        // RX 7700 XT  
-        "0x7479" => Some("Radeon RX 7700 XT".to_string()),
-        // RX 6800 XT
-        "0x73bf" => Some("Radeon RX 6800 XT".to_string()),
-        // RX 6700 XT
-        "0x73df" => Some("Radeon RX 6700 XT".to_string()),
-        _ => None,
-    }
-}
-
-fn resolve_amd_gpu_range(bracket_content: &str) -> String {
-    // For ranges like "Radeon RX 7700 XT / 7800 XT", default to the higher-end model
-    if bracket_content.contains(" / ") {
-        let parts: Vec<&str> = bracket_content.split(" / ").collect();
-        if let Some(last_part) = parts.last() {
-            return last_part.trim().to_string();
-        }
-    }
-    bracket_content.to_string()
-}
-
-fn lookup_gpu_by_ids(vendor_id: &str, device_id: &str) -> Option<String> {
-    match vendor_id {
-        "0x10de" => Some(format!("NVIDIA GPU ({})", device_id)),
-        "0x1002" => {
-            if let Some(exact_model) = amd_device_id_to_name(device_id) {
-                Some(format!("AMD {}", exact_model))
-            } else {
-                Some(format!("AMD GPU ({})", device_id))
-            }
-        },
-        "0x8086" => Some(format!("Intel GPU ({})", device_id)),
-        _ => Some(format!("GPU ({}/{})", vendor_id, device_id)),
-    }
-}

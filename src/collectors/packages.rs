@@ -38,14 +38,36 @@ pub fn get_package_count() -> Result<usize> {
 
 pub fn get_flatpak_package_count() -> Result<usize> {
     let flatpak_dir = "/var/lib/flatpak/app";
-    Ok(fs::read_dir(flatpak_dir)?.count())
+    
+    // Only check if directory exists to avoid unnecessary work
+    if !fs::metadata(flatpak_dir).is_ok() {
+        return Ok(0);
+    }
+    
+    // Count only directories (apps), not files
+    let count = fs::read_dir(flatpak_dir)?
+        .filter_map(|entry| entry.ok())
+        .filter(|entry| entry.path().is_dir())
+        .count();
+    Ok(count)
 }
 
 fn detect_package_manager() -> Option<PackageManager> {
-    if is_nix_system() {
-        Some(PackageManager::Nix)
-    } else if is_arch_system() {
+    // Check file-based indicators first (faster than command_exists)
+    // Order matters: check most common systems first
+    
+    if file_exists("/var/lib/pacman/local") {
         Some(PackageManager::Pacman)
+    } else if file_exists("/var/lib/dpkg/status") {
+        Some(PackageManager::Apt)
+    } else if file_exists("/var/lib/rpm") {
+        Some(PackageManager::Dnf)
+    } else if file_exists("/var/db/xbps") {
+        Some(PackageManager::Xbps)
+    } else if file_exists("/var/db/pkg") {
+        Some(PackageManager::Portage)
+    } else if is_nix_system() {
+        Some(PackageManager::Nix)
     } else if is_void_system() {
         Some(PackageManager::Xbps)
     } else if is_debian_system() {
@@ -61,10 +83,6 @@ fn detect_package_manager() -> Option<PackageManager> {
 
 fn is_nix_system() -> bool {
     command_exists("nix-store")
-}
-
-fn is_arch_system() -> bool {
-    file_exists("/var/lib/pacman/local")
 }
 
 fn is_void_system() -> bool {
@@ -94,6 +112,30 @@ fn get_pacman_package_count() -> Result<usize> {
 }
 
 fn get_xbps_package_count() -> Result<usize> {
+    // Count files in /var/db/xbps directly (faster than xbps-query subprocess)
+    // XBPS stores package metadata as .plist files in /var/db/xbps
+    let xbps_db = "/var/db/xbps";
+    if file_exists(xbps_db) {
+        // Count .plist files (each represents an installed package)
+        if let Ok(entries) = fs::read_dir(xbps_db) {
+            let count = entries
+                .filter_map(|entry| entry.ok())
+                .filter(|entry| {
+                    entry.path()
+                        .file_name()
+                        .and_then(|n| n.to_str())
+                        .map(|n| n.ends_with(".plist"))
+                        .unwrap_or(false)
+                })
+                .count();
+            // Only return if we found plist files, otherwise fallback to command
+            if count > 0 {
+                return Ok(count);
+            }
+        }
+    }
+    
+    // Fallback to xbps-query if directory counting fails
     let output = run_command("xbps-query", &["-l"])?;
     Ok(output.lines().count())
 }

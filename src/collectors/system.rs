@@ -45,8 +45,15 @@ pub fn collect_system_status() -> Result<SystemStatus> {
 
 // Individual functions
 fn read_os_name() -> Result<String> {
-    let os_release = read_file_safe("/etc/os-release")?;
-    for line in os_release.lines() {
+    use std::io::{BufRead, BufReader};
+    use std::fs::File;
+    
+    // Read line by line to find PRETTY_NAME early
+    let file = File::open("/etc/os-release")?;
+    let reader = BufReader::new(file);
+    
+    for line in reader.lines() {
+        let line = line?;
         if line.starts_with("PRETTY_NAME") {
             return Ok(line.split('=').nth(1).unwrap_or("Unknown").trim_matches('"').to_string());
         }
@@ -55,35 +62,82 @@ fn read_os_name() -> Result<String> {
 }
 
 fn read_kernel_version() -> Result<String> {
-    let version_info = read_file_safe("/proc/version")?;
+    // /proc/version is a single line, so use optimized read
+    let version_info = crate::utils::file::read_first_line("/proc/version")?;
     version_info.split_whitespace().nth(2)
         .map(|v| v.to_string())
         .ok_or_else(|| crate::error::SwiftfetchError::Detection("Kernel version not found".to_string()))
 }
 
 fn read_uptime() -> Result<u64> {
-    let uptime_str = read_file_safe("/proc/uptime")?;
+    // /proc/uptime is a single line
+    let uptime_str = crate::utils::file::read_first_line("/proc/uptime")?;
     let secs = uptime_str.split_whitespace().next().unwrap_or("0").parse().unwrap_or(0.0);
     Ok(secs as u64)
 }
 
 fn get_os_age() -> Result<String> {
-    let output = run_command("sh", &[
-        "-c",
-        "birth=$(stat -c %W / 2>/dev/null || echo 0); \
-         if [ \"$birth\" -gt 0 ]; then \
-           current=$(date +%s); \
-           age=$(( (current - birth) / 86400 )); \
-           if [ \"$age\" -eq 1 ]; then \
-             echo \"$age day\"; \
-           else \
-             echo \"$age days\"; \
-           fi; \
-         else \
-           echo \"Unsupported\"; \
-         fi"
-    ])?;
-    Ok(output)
+    use std::ffi::CString;
+    use std::time::{SystemTime, UNIX_EPOCH};
+    use libc;
+    
+    // Use statx syscall to get birth time directly (faster than stat command)
+    #[cfg(target_os = "linux")]
+    {
+        unsafe {
+            let path = CString::new("/").unwrap();
+            let mut statx_buf: libc::statx = std::mem::zeroed();
+            let flags = libc::AT_FDCWD as libc::c_int;
+            let mask = libc::STATX_BTIME as libc::c_uint;
+            
+            // statx syscall (Linux-specific, requires glibc 2.28+)
+            let result = libc::syscall(
+                libc::SYS_statx,
+                flags,
+                path.as_ptr() as *const libc::c_char,
+                libc::AT_SYMLINK_NOFOLLOW as libc::c_int,
+                mask,
+                &mut statx_buf as *mut _ as *mut libc::c_void
+            );
+            
+            if result == 0 && (statx_buf.stx_mask & mask) != 0 {
+                let birth_sec = statx_buf.stx_btime.tv_sec as i64;
+                let now = SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap()
+                    .as_secs() as i64;
+                
+                if birth_sec > 0 {
+                    let age_days = (now - birth_sec) / 86400;
+                    if age_days == 1 {
+                        return Ok("1 day".to_string());
+                    } else {
+                        return Ok(format!("{} days", age_days));
+                    }
+                }
+            }
+        }
+    }
+    
+    // Fallback to stat command if statx fails or not available
+    let stat_output = run_command("stat", &["-c", "%W", "/"])?;
+    let birth_timestamp: i64 = stat_output.trim().parse().unwrap_or(0);
+    
+    if birth_timestamp > 0 {
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs() as i64;
+        let age_days = (now - birth_timestamp) / 86400;
+        
+        if age_days == 1 {
+            Ok("1 day".to_string())
+        } else {
+            Ok(format!("{} days", age_days))
+        }
+    } else {
+        Ok("Unsupported".to_string())
+    }
 }
 
 fn get_hostname() -> Result<String> {
@@ -113,7 +167,14 @@ fn get_terminal() -> String {
 }
 
 fn detect_init_system() -> String {
-    // Check for systemd first (most common)
+    // Check for systemd first (most common) - check files before spawning process
+    if file_exists("/run/systemd/system") || 
+       file_exists("/usr/lib/systemd/systemd") ||
+       file_exists("/etc/systemd/system") {
+        return "systemd".to_string();
+    }
+    
+    // Only run systemctl command as last resort
     if command_succeeds("systemctl", &["--version"]) {
         return "systemd".to_string();
     }

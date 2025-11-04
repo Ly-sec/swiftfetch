@@ -22,11 +22,17 @@ pub fn run_command(program: &str, args: &[&str]) -> Result<String> {
 
 /// Check if a command exists in PATH
 pub fn command_exists(program: &str) -> bool {
-    Command::new("which")
-        .arg(program)
-        .output()
-        .map(|output| output.status.success())
-        .unwrap_or(false)
+    use std::env;
+    
+    if let Ok(path) = env::var("PATH") {
+        for dir in path.split(':') {
+            let full_path = std::path::Path::new(dir).join(program);
+            if full_path.exists() && full_path.is_file() {
+                return true;
+            }
+        }
+    }
+    false
 }
 
 /// Execute command and return success status only

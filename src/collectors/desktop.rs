@@ -1,6 +1,6 @@
 //! Desktop environment and window manager detection
 
-use std::{env, process::Command};
+use std::env;
 
 /// Detect the current window manager or desktop environment
 pub fn detect_wm_or_de() -> String {
@@ -14,17 +14,36 @@ pub fn detect_wm_or_de() -> String {
         return "Wayland".to_string();
     }
 
-    let output = Command::new("sh")
-        .arg("-c")
-        .arg("ps -e | grep -E 'sway|hyprland|kwin|mutter|xfwm4|openbox|i3|bspwm|awesome|weston|gnome-session'")
-        .output()
-        .ok();
-
-    if let Some(output) = output {
-        let result = String::from_utf8_lossy(&output.stdout);
-        if let Some(line) = result.lines().next() {
-            if let Some(process) = line.split_whitespace().last() {
-                return capitalize_first_letter(process);
+    // Check for window manager processes by reading /proc
+    // Limit scan to first 50 PIDs (most WMs start very early) and use early exit
+    let wm_names = ["sway", "hyprland", "kwin_wayland", "kwin_x11", "niri", "mutter", 
+                    "xfwm4", "openbox", "i3", "bspwm", "awesome", "weston", 
+                    "gnome-session"];
+    
+    if let Ok(entries) = std::fs::read_dir("/proc") {
+        let mut count = 0;
+        for entry in entries {
+            if count > 50 { break; } // Limit scan even more aggressively
+            if let Ok(entry) = entry {
+                if let Some(name) = entry.file_name().to_str() {
+                    // Skip non-PID directories faster
+                    if name.parse::<u32>().is_ok() {
+                        count += 1;
+                        // Try reading comm file (faster than cmdline)
+                        if let Ok(cmdline) = std::fs::read_to_string(entry.path().join("comm")) {
+                            let cmd = cmdline.trim();
+                            // Early match check
+                            for wm in &wm_names {
+                                if cmd == *wm || cmd.starts_with(wm) {
+                                    if cmd == "gnome-session" || cmd.starts_with("gnome-session-") {
+                                        return "GNOME".to_string();
+                                    }
+                                    return capitalize_first_letter(cmd);
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
     }
