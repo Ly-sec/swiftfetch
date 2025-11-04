@@ -1,7 +1,7 @@
 //! Hardware information collection (CPU, GPU, Memory, Disk)
 
 use crate::error::Result;
-use crate::utils::{file::*, command::*, parsing::*};
+use crate::utils::{command::*, parsing::*};
 use crate::data::{HardwareInfo, CpuInfo, GpuInfo, MemoryInfo, DiskInfo};
 use std::fs;
 
