@@ -13,7 +13,8 @@ pub fn extract_after_colon(line: &str) -> Option<String> {
 /// Parse memory value in kB to GB
 #[allow(dead_code)]
 pub fn kb_to_gb(kb_str: &str) -> Result<f64> {
-    let kb: u64 = kb_str.trim()
+    let kb: u64 = kb_str
+        .trim()
         .parse()
         .map_err(|_| SwiftfetchError::Parse(format!("Invalid memory value: {}", kb_str)))?;
     Ok(kb as f64 / 1_048_576.0) // 1024^2
@@ -23,7 +24,7 @@ pub fn kb_to_gb(kb_str: &str) -> Result<f64> {
 pub fn format_uptime(seconds: u64) -> String {
     let hours = seconds / 3600;
     let minutes = (seconds % 3600) / 60;
-    
+
     if hours > 0 {
         format!("{}h {:02}m", hours, minutes)
     } else {

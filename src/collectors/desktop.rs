@@ -16,14 +16,28 @@ pub fn detect_wm_or_de() -> String {
 
     // Check for window manager processes by reading /proc
     // Limit scan to first 50 PIDs (most WMs start very early) and use early exit
-    let wm_names = ["sway", "hyprland", "kwin_wayland", "kwin_x11", "niri", "mutter", 
-                    "xfwm4", "openbox", "i3", "bspwm", "awesome", "weston", 
-                    "gnome-session"];
-    
+    let wm_names = [
+        "sway",
+        "hyprland",
+        "kwin_wayland",
+        "kwin_x11",
+        "niri",
+        "mutter",
+        "xfwm4",
+        "openbox",
+        "i3",
+        "bspwm",
+        "awesome",
+        "weston",
+        "gnome-session",
+    ];
+
     if let Ok(entries) = std::fs::read_dir("/proc") {
         let mut count = 0;
         for entry in entries {
-            if count > 50 { break; } // Limit scan even more aggressively
+            if count > 50 {
+                break;
+            } // Limit scan even more aggressively
             if let Ok(entry) = entry {
                 if let Some(name) = entry.file_name().to_str() {
                     // Skip non-PID directories faster

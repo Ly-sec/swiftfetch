@@ -1,12 +1,12 @@
-mod error;
-mod data;
 mod collectors;
-mod utils;
 mod config;
+mod data;
 mod display;
+mod error;
+mod utils;
 
-use crate::error::Result;
 use crate::data::SystemInfo;
+use crate::error::Result;
 use config::{ensure_user_config_exists, load_config};
 use display::{render_output, SystemData};
 
@@ -49,19 +49,25 @@ fn collect_system_info() -> Result<SystemInfo> {
     // Collect independent data in parallel using nested joins
     // Rayon::join only takes 2 closures, so we nest them
     let ((os, hardware), (packages, (status, user))) = rayon::join(
-        || rayon::join(
-            || collectors::system::collect_os_info(),
-            || collectors::hardware::collect_hardware_info(),
-        ),
-        || rayon::join(
-            || collectors::packages::collect_package_info(),
-            || rayon::join(
-                || collectors::system::collect_system_status(),
-                || collectors::system::collect_user_info(),
-            ),
-        ),
+        || {
+            rayon::join(
+                || collectors::system::collect_os_info(),
+                || collectors::hardware::collect_hardware_info(),
+            )
+        },
+        || {
+            rayon::join(
+                || collectors::packages::collect_package_info(),
+                || {
+                    rayon::join(
+                        || collectors::system::collect_system_status(),
+                        || collectors::system::collect_user_info(),
+                    )
+                },
+            )
+        },
     );
-    
+
     Ok(SystemInfo {
         os: os?,
         hardware: hardware?,

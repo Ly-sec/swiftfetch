@@ -1,3 +1,3 @@
-pub mod file;
 pub mod command;
+pub mod file;
 pub mod parsing;

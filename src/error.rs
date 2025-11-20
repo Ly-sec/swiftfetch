@@ -1,7 +1,7 @@
 //! Centralized error handling for swiftfetch
 
-use std::io;
 use std::fmt;
+use std::io;
 
 /// Custom error type for swiftfetch operations
 #[derive(Debug)]

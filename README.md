@@ -10,6 +10,7 @@ Please always check the default [config](/config/config.toml) for possible chang
 ## Features
 
 - Displays Ascii art, essential system information like OS, kernel version, CPU, RAM usage, and more.
+- Optional Kitty image mode to replace ASCII art with full-color logos.
 - Easy to configure and extend.
 - Simple, fast, and lightweight.
 
@@ -107,8 +108,15 @@ You can find the default config right [here](/config/config.toml)
 
 ## Configuration Options
 
-- `ascii_path`: This is currently the only way to display ascii art, I will add proper Ascii art for distros at some point.
-- `ascii_color`: Sets the color of the ascii art.
+- `display_mode`: Selects how the left column is rendered. Accepts `ascii` (default) or `image`.
+- `image_path`: Path to a PNG/JPEG/WebP file to transmit when `display_mode = "image"`.
+- `image_width` / `image_height`: Optional resize hints (pixels). When only one is set the other dimension is calculated to keep the aspect ratio.
+- `image_padding_columns` *(optional)*: Override the automatically calculated horizontal spacing (derived from the image width plus a small gap, using your terminal's reported cell size when available). Most users can leave this unset.
+- `image_rows` *(optional)*: Override the number of terminal rows the image should occupy. Handy when automatic height detection (based on pixel height ÷ character height) doesn’t match your font size.
+- `image_horizontal_offset` *(optional)*: Move the image left/right relative to the system info (measured in terminal columns). Positive values shift it to the right, negative to the left.
+- `image_vertical_offset` *(optional)*: Move the image up/down relative to the system info (measured in terminal rows). Positive values shift it downward.
+- `ascii_path`: Override the ASCII art file. When unset we fall back to a distro-specific default if available.
+- `ascii_color`: Sets the color of the ascii art (or padding spaces when an image is shown).
 
 - `items`: This section defines a list of key-value pairs for the items to be displayed. Each item can have three components:
 
@@ -120,6 +128,12 @@ You can find the default config right [here](/config/config.toml)
   - **`value`**: This is the content associated with the key. The content can be a static text, a command to run, or a dynamic value, depending on the `type`.
   - `color`: Sets the color of the key.
   - `value_color`: Sets the color of the value color (aka the part after the separator).
+
+### Kitty image mode
+
+When `display_mode = "image"` the logo is transmitted through the Kitty graphics protocol before the system information is printed. Your terminal must support the protocol (Kitty, WezTerm, Ghostty, Foot, etc.). We auto-detect support (including Ghostty sessions that use `TERM=xterm-256color`), but you can override the check with `SWIFTFETCH_FORCE_KITTY=1`. If transmission fails we quietly fall back to ASCII mode.
+
+Place the image wherever you like (e.g. `~/.config/swiftfetch/logo.png`) and update the path/target size. Spacing between the logo and the text is computed automatically from the rendered width, while the image is nudged down slightly so it lines up with your stats — you can still tweak horizontal spacing with `image_padding_columns` and fine-tune positions with `image_horizontal_offset` / `image_vertical_offset`.
 
   ### Example of `text` type
 

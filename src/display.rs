@@ -1,7 +1,13 @@
+use self::kitty_support::KittyArtworkInfo;
 use crate::config::{Config, ConfigEntry};
-use std::{fs, io::{self, BufRead}, path::Path, process::Command};
-use unicode_width::UnicodeWidthStr;
 use shellexpand;
+use std::{
+    fs,
+    io::{self, BufRead},
+    path::Path,
+    process::Command,
+};
+use unicode_width::UnicodeWidthStr;
 
 pub fn get_default_ascii(distro: &str) -> Option<&'static str> {
     match distro.to_lowercase().as_str() {
@@ -23,7 +29,7 @@ pub fn hex_to_ansi(color: &str) -> String {
     if let Some(ansi_code) = get_ansi_color_code(color) {
         return ansi_code;
     }
-    
+
     // Fallback to hex color parsing for custom colors
     if color.starts_with('#') && color.len() == 7 {
         if let (Ok(r), Ok(g), Ok(b)) = (
@@ -34,7 +40,7 @@ pub fn hex_to_ansi(color: &str) -> String {
             return format!("\x1b[38;2;{};{};{}m", r, g, b);
         }
     }
-    
+
     // Default fallback
     "\x1b[0m".to_string()
 }
@@ -50,7 +56,7 @@ fn get_ansi_color_code(color_name: &str) -> Option<String> {
         "magenta" => Some("\x1b[35m".to_string()),
         "cyan" => Some("\x1b[36m".to_string()),
         "white" => Some("\x1b[37m".to_string()),
-        
+
         // Bright colors (90-97)
         "bright_black" | "gray" | "grey" => Some("\x1b[90m".to_string()),
         "bright_red" => Some("\x1b[91m".to_string()),
@@ -60,15 +66,15 @@ fn get_ansi_color_code(color_name: &str) -> Option<String> {
         "bright_magenta" => Some("\x1b[95m".to_string()),
         "bright_cyan" => Some("\x1b[96m".to_string()),
         "bright_white" => Some("\x1b[97m".to_string()),
-        
+
         // Additional aliases
         "orange" => Some("\x1b[91m".to_string()), // bright red
         "purple" => Some("\x1b[35m".to_string()), // magenta
         "violet" => Some("\x1b[95m".to_string()), // bright magenta
-        
+
         // Reset
         "reset" | "default" => Some("\x1b[0m".to_string()),
-        
+
         _ => {
             // Show available colors if an invalid color is used
             eprintln!("Error: Unknown color '{}'. Available colors:", color_name);
@@ -84,12 +90,21 @@ fn get_ansi_color_code(color_name: &str) -> Option<String> {
 pub fn load_ascii_lines(config: &Config, os_name: &str) -> Vec<String> {
     let use_default = config.display.use_default_ascii.unwrap_or(true);
 
-    match config.display.ascii_path.as_ref().map(|p| p.trim()).filter(|p| !p.is_empty()) {
+    match config
+        .display
+        .ascii_path
+        .as_ref()
+        .map(|p| p.trim())
+        .filter(|p| !p.is_empty())
+    {
         Some(ascii_path) => {
             let expanded_path = shellexpand::tilde(ascii_path).to_string();
             if Path::new(&expanded_path).exists() {
                 if let Ok(file) = fs::File::open(&expanded_path) {
-                    return io::BufReader::new(file).lines().filter_map(Result::ok).collect();
+                    return io::BufReader::new(file)
+                        .lines()
+                        .filter_map(Result::ok)
+                        .collect();
                 }
             }
             // If file does not exist or failed to open
@@ -134,24 +149,8 @@ pub struct SystemData {
 }
 
 pub fn render_output(config: &Config, system_data: &SystemData) {
-    let separator = config.display.separator.clone().unwrap_or_else(|| ": ".to_string());
-    let ascii_lines = load_ascii_lines(config, &system_data.os_name);
+    let separator = config.display.separator.as_deref().unwrap_or(": ");
     let show_all_gpus = config.display.show_all_gpus.unwrap_or(false);
-
-    let max_ascii_length = ascii_lines
-        .iter()
-        .map(|line| UnicodeWidthStr::width(line.as_str()))
-        .max()
-        .unwrap_or(0);
-
-        let ascii_color_code = config
-            .colors
-            .get(&config.display.ascii_color)
-            .map(|color| hex_to_ansi(color))
-            .unwrap_or_else(|| {
-                eprintln!("Warning: ascii_color '{}' not found in colors map", config.display.ascii_color);
-                get_ansi_color_code(&config.display.ascii_color).unwrap_or_else(|| "\x1b[0m".to_string())
-            });
 
     let mut rendered_items = Vec::new();
 
@@ -175,6 +174,107 @@ pub fn render_output(config: &Config, system_data: &SystemData) {
         }
     }
 
+    let ascii_color_code = config
+        .colors
+        .get(&config.display.ascii_color)
+        .map(|color| hex_to_ansi(color))
+        .unwrap_or_else(|| {
+            get_ansi_color_code(&config.display.ascii_color)
+                .unwrap_or_else(|| "\x1b[0m".to_string())
+        });
+
+    // Pre-compute and cache color codes to avoid repeated parsing
+    let mut color_cache: std::collections::HashMap<String, String> =
+        std::collections::HashMap::new();
+    let mut get_cached_color = |color_key: &str| -> String {
+        color_cache
+            .entry(color_key.to_string())
+            .or_insert_with(|| {
+                config
+                    .colors
+                    .get(color_key)
+                    .map(|c| hex_to_ansi(c))
+                    .unwrap_or_else(|| {
+                        get_ansi_color_code(color_key).unwrap_or_else(|| "\x1b[0m".to_string())
+                    })
+            })
+            .clone()
+    };
+
+    let mut output = String::with_capacity(4096);
+
+    let mut ascii_lines: Vec<String> = Vec::new();
+    let display_mode = config
+        .display
+        .display_mode
+        .as_deref()
+        .unwrap_or("ascii")
+        .to_lowercase();
+
+    let use_image_mode = matches!(display_mode.as_str(), "image" | "kitty");
+
+    if use_image_mode {
+        if let Some(image_path) = config.display.image_path.as_ref() {
+            if !kitty_support::terminal_supports_kitty() {
+                eprintln!(
+                    "Image mode requested but the terminal did not advertise Kitty-compatible graphics \
+                     support. Attempting to transmit anyway (set SWIFTFETCH_FORCE_KITTY=1 to skip this warning)."
+                );
+            }
+
+            let expanded_path = shellexpand::tilde(image_path).to_string();
+            let mut kitty_buffer = String::new();
+            match kitty_support::render_image(
+                &expanded_path,
+                config.display.image_width,
+                config.display.image_height,
+                config.display.image_padding_columns,
+                config.display.image_rows,
+                config.display.image_offset_columns.unwrap_or(0),
+                config.display.image_offset_rows.unwrap_or(0),
+                &mut kitty_buffer,
+            ) {
+                Ok(KittyArtworkInfo {
+                    pad_columns,
+                    pad_rows,
+                }) => {
+                    let padding = if pad_columns > 0 {
+                        " ".repeat(pad_columns)
+                    } else {
+                        String::new()
+                    };
+
+                    let desired_lines = std::cmp::max(rendered_items.len(), pad_rows).max(1);
+                    ascii_lines = vec![padding; desired_lines];
+
+                    output.push_str("\x1b[s");
+                    output.push_str(&kitty_buffer);
+                    output.push_str("\x1b[u");
+                }
+                Err(err) => {
+                    eprintln!(
+                        "Kitty image rendering failed (falling back to ASCII): {}",
+                        err
+                    );
+                }
+            }
+        } else {
+            eprintln!(
+                "Image display mode was requested but 'image_path' was not set. Falling back to ASCII output."
+            );
+        }
+    }
+
+    if ascii_lines.is_empty() {
+        ascii_lines = load_ascii_lines(config, &system_data.os_name);
+    }
+
+    let max_ascii_length = ascii_lines
+        .iter()
+        .map(|line| UnicodeWidthStr::width(line.as_str()))
+        .max()
+        .unwrap_or(0);
+
     for (i, entry) in rendered_items.iter().enumerate() {
         let ascii_line = if i < ascii_lines.len() {
             &ascii_lines[i]
@@ -182,38 +282,34 @@ pub fn render_output(config: &Config, system_data: &SystemData) {
             ""
         };
 
-        let padded_ascii = format!("{:<width$}", ascii_line, width = max_ascii_length);
-        let colored_ascii = format!("{}{}", ascii_color_code, padded_ascii);
+        // Pre-allocate space for padded ASCII
+        let padded_ascii = if ascii_line.len() < max_ascii_length {
+            format!("{:<width$}", ascii_line, width = max_ascii_length)
+        } else {
+            ascii_line.to_string()
+        };
+
+        output.push_str(&ascii_color_code);
+        output.push_str(&padded_ascii);
 
         if entry.value.is_empty() {
-            println!("{}", colored_ascii);
+            output.push('\n');
             continue;
         }
+
+        output.push_str("  ");
 
         let key_color_code = entry
             .color
             .as_ref()
-            .and_then(|c| config.colors.get(c))
-            .map(|color| hex_to_ansi(color))
-            .unwrap_or_else(|| {
-                if let Some(ref color_key) = entry.color {
-                    eprintln!("Warning: color key '{}' not found in colors map", color_key);
-                    get_ansi_color_code(color_key).unwrap_or_else(|| "\x1b[0m".to_string())
-                } else {
-                    "\x1b[0m".to_string()
-                }
-            });
+            .map(|c| get_cached_color(c))
+            .unwrap_or_else(|| "\x1b[0m".to_string());
 
-        let value_color_code = match &entry.value_color {
-            Some(value_color_key) => match config.colors.get(value_color_key) {
-                Some(color) => hex_to_ansi(color),
-                None => {
-                    eprintln!("Warning: value_color key '{}' not found in colors map", value_color_key);
-                    get_ansi_color_code(value_color_key).unwrap_or_else(|| "\x1b[0m".to_string())
-                }
-            },
-            None => "\x1b[0m".to_string(),
-        };
+        let value_color_code = entry
+            .value_color
+            .as_ref()
+            .map(|c| get_cached_color(c))
+            .unwrap_or_else(|| "\x1b[0m".to_string());
 
         let output_value = get_output_value(entry, system_data);
 
@@ -221,39 +317,40 @@ pub fn render_output(config: &Config, system_data: &SystemData) {
             let text_color = entry
                 .color
                 .as_ref()
-                .and_then(|c| config.colors.get(c))
-                .map(|color| hex_to_ansi(color))
-                .unwrap_or_else(|| {
-                    if let Some(ref color_key) = entry.color {
-                        get_ansi_color_code(color_key).unwrap_or_else(|| "\x1b[0m".to_string())
-                    } else {
-                        "\x1b[0m".to_string()
-                    }
-                });
-            println!("{}  {}{}\x1b[0m", colored_ascii, text_color, output_value);
+                .map(|c| get_cached_color(c))
+                .unwrap_or_else(|| "\x1b[0m".to_string());
+            output.push_str(&text_color);
+            output.push_str(&output_value);
+            output.push_str("\x1b[0m\n");
         } else if entry.key.is_empty() || entry.key == "user_info" {
-            println!("{}  {}{}\x1b[0m", colored_ascii, value_color_code, output_value);
+            output.push_str(&value_color_code);
+            output.push_str(&output_value);
+            output.push_str("\x1b[0m\n");
         } else {
-            println!(
-                "{}  {}{}{}\x1b[0m{}{}{}\x1b[0m",
-                colored_ascii,
-                key_color_code,
-                entry.key,
-                separator,
-                value_color_code,
-                output_value,
-                "\x1b[0m"
-            );
+            output.push_str(&key_color_code);
+            output.push_str(&entry.key);
+            output.push_str(separator);
+            output.push_str("\x1b[0m");
+            output.push_str(&value_color_code);
+            output.push_str(&output_value);
+            output.push_str("\x1b[0m\n");
         }
     }
 
     // Print remaining ASCII lines
     for i in rendered_items.len()..ascii_lines.len() {
-        let padded_ascii = format!("{:<width$}", ascii_lines[i], width = max_ascii_length);
-        println!("{}{}", ascii_color_code, padded_ascii);
+        let padded_ascii = if ascii_lines[i].len() < max_ascii_length {
+            format!("{:<width$}", ascii_lines[i], width = max_ascii_length)
+        } else {
+            ascii_lines[i].clone()
+        };
+        output.push_str(&ascii_color_code);
+        output.push_str(&padded_ascii);
+        output.push('\n');
     }
 
-    print!("\x1b[0m");
+    output.push_str("\x1b[0m");
+    print!("{}", output);
 }
 
 fn get_output_value(entry: &ConfigEntry, system_data: &SystemData) -> String {
@@ -263,9 +360,21 @@ fn get_output_value(entry: &ConfigEntry, system_data: &SystemData) -> String {
             "os" => system_data.os_name.clone(),
             "cpu" => system_data.cpu_brand.clone(),
             "gpu" => system_data.gpu.clone(),
-            "gpu1" => system_data.all_gpus.get(0).cloned().unwrap_or_else(|| "No GPU".to_string()),
-            "gpu2" => system_data.all_gpus.get(1).cloned().unwrap_or_else(|| "No secondary GPU".to_string()),
-            "gpu3" => system_data.all_gpus.get(2).cloned().unwrap_or_else(|| "No third GPU".to_string()),
+            "gpu1" => system_data
+                .all_gpus
+                .get(0)
+                .cloned()
+                .unwrap_or_else(|| "No GPU".to_string()),
+            "gpu2" => system_data
+                .all_gpus
+                .get(1)
+                .cloned()
+                .unwrap_or_else(|| "No secondary GPU".to_string()),
+            "gpu3" => system_data
+                .all_gpus
+                .get(2)
+                .cloned()
+                .unwrap_or_else(|| "No third GPU".to_string()),
             "wm" => system_data.wm_de.clone(),
             "editor" => system_data.editor.clone(),
             "shell" => system_data.shell.clone(),
@@ -284,14 +393,205 @@ fn get_output_value(entry: &ConfigEntry, system_data: &SystemData) -> String {
             _ => "Unknown default value".to_string(),
         },
         "text" => entry.value.clone(),
-        "command" => {
-            Command::new("sh")
-                .arg("-c")
-                .arg(&entry.value)
-                .output()
-                .map(|output| String::from_utf8_lossy(&output.stdout).trim().to_string())
-                .unwrap_or_else(|_| "Command failed".to_string())
-        }
+        "command" => Command::new("sh")
+            .arg("-c")
+            .arg(&entry.value)
+            .output()
+            .map(|output| String::from_utf8_lossy(&output.stdout).trim().to_string())
+            .unwrap_or_else(|_| "Command failed".to_string()),
         _ => "Invalid type".to_string(),
+    }
+}
+
+mod kitty_support {
+    use base64::engine::general_purpose::STANDARD as BASE64_ENGINE;
+    use base64::Engine;
+    use image::{imageops::FilterType, DynamicImage, GenericImageView, ImageOutputFormat};
+    use std::{env, fmt::Write, io::Cursor, mem, path::Path};
+
+    pub struct KittyArtworkInfo {
+        pub pad_columns: usize,
+        pub pad_rows: usize,
+    }
+
+    const DEFAULT_CHAR_WIDTH: f32 = 11.5;
+    const DEFAULT_CHAR_HEIGHT: f32 = 18.0;
+    const DEFAULT_GAP_COLUMNS: usize = 1;
+
+    pub fn terminal_supports_kitty() -> bool {
+        if matches!(
+            env::var("SWIFTFETCH_FORCE_KITTY"),
+            Ok(v) if v == "1" || v.eq_ignore_ascii_case("true")
+        ) {
+            return true;
+        }
+
+        env::var("KITTY_WINDOW_ID").is_ok()
+            || env::var("WEZTERM_PANE").is_ok()
+            || env::var("TERM_PROGRAM")
+                .map(|prog| term_program_supports_kitty(&prog))
+                .unwrap_or(false)
+            || env::var("TERM")
+                .map(|term| term_name_supports_kitty(&term))
+                .unwrap_or(false)
+    }
+
+    fn term_program_supports_kitty(value: &str) -> bool {
+        let value = value.to_lowercase();
+        matches!(
+            value.as_str(),
+            "kitty" | "wezterm" | "ghostty" | "tabby" | "warp-terminal"
+        )
+    }
+
+    fn term_name_supports_kitty(term: &str) -> bool {
+        let term = term.to_lowercase();
+
+        if term.contains("kitty") || term.contains("wezterm") || term.contains("foot") {
+            return true;
+        }
+
+        if term.contains("ghostty") {
+            return true;
+        }
+
+        // Ghostty users often override TERM to xterm-256color or tmux-256color.
+        env::vars().any(|(key, _)| key.starts_with("GHOSTTY_"))
+    }
+
+    fn terminal_cell_metrics() -> Option<(f32, f32)> {
+        #[cfg(unix)]
+        {
+            use libc::{ioctl, winsize, STDOUT_FILENO, TIOCGWINSZ};
+            let mut ws: winsize = unsafe { mem::zeroed() };
+            let result = unsafe { ioctl(STDOUT_FILENO, TIOCGWINSZ, &mut ws) };
+            if result == 0 && ws.ws_col > 0 && ws.ws_row > 0 && ws.ws_xpixel > 0 && ws.ws_ypixel > 0
+            {
+                let char_width = ws.ws_xpixel as f32 / ws.ws_col as f32;
+                let char_height = ws.ws_ypixel as f32 / ws.ws_row as f32;
+                return Some((char_width, char_height));
+            }
+        }
+        None
+    }
+
+    pub fn render_image(
+        path: &str,
+        target_width: Option<u32>,
+        target_height: Option<u32>,
+        configured_padding: Option<usize>,
+        configured_rows: Option<usize>,
+        offset_columns: i32,
+        offset_rows: i32,
+        output: &mut String,
+    ) -> Result<KittyArtworkInfo, String> {
+        let mut image = image::open(Path::new(path))
+            .map_err(|err| format!("Failed to open image '{}': {}", path, err))?;
+
+        image = resize_image(image, target_width, target_height);
+
+        let (final_width, final_height) = image.dimensions();
+
+        let mut png_bytes = Vec::new();
+        {
+            let mut cursor = Cursor::new(&mut png_bytes);
+            image
+                .write_to(&mut cursor, ImageOutputFormat::Png)
+                .map_err(|err| format!("Failed to encode image '{}': {}", path, err))?;
+        }
+
+        let (char_width, char_height) =
+            terminal_cell_metrics().unwrap_or((DEFAULT_CHAR_WIDTH, DEFAULT_CHAR_HEIGHT));
+        let auto_columns = ((final_width as f32 / char_width).ceil() as usize).max(1);
+        let auto_pad_columns = configured_padding.unwrap_or(auto_columns + DEFAULT_GAP_COLUMNS);
+        let auto_pad_rows = configured_rows
+            .unwrap_or_else(|| ((final_height as f32 / char_height).ceil() as usize).max(1));
+
+        let pad_columns = adjust_with_offset(auto_pad_columns, offset_columns, 0);
+        let pad_rows = adjust_with_offset(auto_pad_rows, offset_rows, 1);
+        let vertical_offset_rows = compute_vertical_offset_rows(auto_pad_rows) + offset_rows;
+
+        transmit_png(
+            &png_bytes,
+            final_width,
+            final_height,
+            offset_columns,
+            vertical_offset_rows,
+            output,
+        )?;
+        output.push('\n');
+
+        Ok(KittyArtworkInfo {
+            pad_columns,
+            pad_rows,
+        })
+    }
+
+    fn resize_image(image: DynamicImage, width: Option<u32>, height: Option<u32>) -> DynamicImage {
+        match (width, height) {
+            (Some(w), Some(h)) => image.resize_exact(w, h, FilterType::Lanczos3),
+            (Some(w), None) => {
+                let ratio = w as f32 / image.width() as f32;
+                let h = ((image.height() as f32 * ratio).round().max(1.0)) as u32;
+                image.resize_exact(w, h, FilterType::Lanczos3)
+            }
+            (None, Some(h)) => {
+                let ratio = h as f32 / image.height() as f32;
+                let w = ((image.width() as f32 * ratio).round().max(1.0)) as u32;
+                image.resize_exact(w, h, FilterType::Lanczos3)
+            }
+            (None, None) => image,
+        }
+    }
+
+    fn transmit_png(
+        png_bytes: &[u8],
+        width: u32,
+        height: u32,
+        horizontal_offset: i32,
+        vertical_offset: i32,
+        output: &mut String,
+    ) -> Result<(), String> {
+        let encoded = BASE64_ENGINE.encode(png_bytes);
+        let mut start = 0usize;
+        const CHUNK: usize = 4096;
+
+        while start < encoded.len() {
+            let end = (start + CHUNK).min(encoded.len());
+            let chunk = &encoded[start..end];
+            let more_flag = if end < encoded.len() { 1 } else { 0 };
+
+            write!(
+                output,
+                "\x1b_Ga=T,f=100,s={},v={},x={},y={},m={};",
+                width, height, horizontal_offset, vertical_offset, more_flag
+            )
+            .map_err(|_| "Failed to write Kitty image escape sequence".to_string())?;
+
+            output.push_str(chunk);
+            output.push_str("\x1b\\");
+
+            start = end;
+        }
+
+        Ok(())
+    }
+
+    fn compute_vertical_offset_rows(pad_rows: usize) -> i32 {
+        if pad_rows == 0 {
+            return 0;
+        }
+
+        let offset = (pad_rows as f32 * 0.08).round() as i32;
+        offset.max(1)
+    }
+
+    fn adjust_with_offset(base: usize, delta: i32, min_value: usize) -> usize {
+        let adjusted = base as i32 + delta;
+        if adjusted < min_value as i32 {
+            min_value
+        } else {
+            adjusted as usize
+        }
     }
 }

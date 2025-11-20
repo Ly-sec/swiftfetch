@@ -1,6 +1,14 @@
 [display]
 separator = ": "
 show_all_gpus = true
+display_mode = "ascii" # options: ascii, image
+#image_path = "~/.config/swiftfetch/logo.png"
+#image_width = 320
+#image_height = 320
+#image_padding_columns = 32
+#image_rows = 20
+#image_horizontal_offset = 0   # positive moves logo right, negative left
+#image_vertical_offset = 0     # positive moves logo down, negative up
 
 use_default_ascii = true
 #ascii_path = "~/.config/swiftfetch/ascii/void.txt"

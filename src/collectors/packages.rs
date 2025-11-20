@@ -1,27 +1,33 @@
 //! Package management information collection
 
-use crate::error::Result;
-use crate::utils::{file::*, command::*};
 use crate::data::PackageInfo;
+use crate::error::Result;
+use crate::utils::{command::*, file::*};
 use std::fs;
 
-/// Collect package information
+/// Collect package information (parallelized for speed)
 pub fn collect_package_info() -> Result<PackageInfo> {
+    // Collect system packages and flatpak packages in parallel
+    let (system_packages, flatpak_packages) = rayon::join(
+        || get_package_count().unwrap_or(0),
+        || get_flatpak_package_count().unwrap_or(0),
+    );
+
     Ok(PackageInfo {
-        system_packages: get_package_count().unwrap_or(0),
-        flatpak_packages: get_flatpak_package_count().unwrap_or(0),
+        system_packages,
+        flatpak_packages,
     })
 }
 
 /// Supported package managers for different Linux distributions
 #[derive(Debug)]
 pub enum PackageManager {
-    Nix,      // NixOS
-    Pacman,   // Arch Linux, Manjaro
-    Xbps,     // Void Linux
-    Apt,      // Debian, Ubuntu
-    Dnf,      // Fedora, RHEL 8+
-    Portage,  // Gentoo
+    Nix,     // NixOS
+    Pacman,  // Arch Linux, Manjaro
+    Xbps,    // Void Linux
+    Apt,     // Debian, Ubuntu
+    Dnf,     // Fedora, RHEL 8+
+    Portage, // Gentoo
 }
 
 pub fn get_package_count() -> Result<usize> {
@@ -38,12 +44,12 @@ pub fn get_package_count() -> Result<usize> {
 
 pub fn get_flatpak_package_count() -> Result<usize> {
     let flatpak_dir = "/var/lib/flatpak/app";
-    
+
     // Only check if directory exists to avoid unnecessary work
     if !fs::metadata(flatpak_dir).is_ok() {
         return Ok(0);
     }
-    
+
     // Count only directories (apps), not files
     let count = fs::read_dir(flatpak_dir)?
         .filter_map(|entry| entry.ok())
@@ -55,7 +61,7 @@ pub fn get_flatpak_package_count() -> Result<usize> {
 fn detect_package_manager() -> Option<PackageManager> {
     // Check file-based indicators first (faster than command_exists)
     // Order matters: check most common systems first
-    
+
     if file_exists("/var/lib/pacman/local") {
         Some(PackageManager::Pacman)
     } else if file_exists("/var/lib/dpkg/status") {
@@ -103,7 +109,10 @@ fn is_gentoo_system() -> bool {
 
 // Implementation functions for each package manager
 fn get_nix_package_count() -> Result<usize> {
-    let output = run_command("nix-store", &["--query", "--requisites", "/run/current-system/sw"])?;
+    let output = run_command(
+        "nix-store",
+        &["--query", "--requisites", "/run/current-system/sw"],
+    )?;
     Ok(output.lines().count())
 }
 
@@ -121,7 +130,8 @@ fn get_xbps_package_count() -> Result<usize> {
             let count = entries
                 .filter_map(|entry| entry.ok())
                 .filter(|entry| {
-                    entry.path()
+                    entry
+                        .path()
                         .file_name()
                         .and_then(|n| n.to_str())
                         .map(|n| n.ends_with(".plist"))
@@ -134,7 +144,7 @@ fn get_xbps_package_count() -> Result<usize> {
             }
         }
     }
-    
+
     // Fallback to xbps-query if directory counting fails
     let output = run_command("xbps-query", &["-l"])?;
     Ok(output.lines().count())
@@ -149,14 +159,20 @@ fn get_dnf_package_count() -> Result<usize> {
     // First try dnf, then fall back to yum, then rpm
     if command_exists("dnf") {
         let output = run_command("dnf", &["list", "installed", "--quiet"])?;
-        return Ok(output.lines().filter(|line| !line.is_empty() && !line.starts_with("Installed Packages")).count());
+        return Ok(output
+            .lines()
+            .filter(|line| !line.is_empty() && !line.starts_with("Installed Packages"))
+            .count());
     }
-    
+
     if command_exists("yum") {
         let output = run_command("yum", &["list", "installed", "--quiet"])?;
-        return Ok(output.lines().filter(|line| !line.is_empty() && !line.starts_with("Installed Packages")).count());
+        return Ok(output
+            .lines()
+            .filter(|line| !line.is_empty() && !line.starts_with("Installed Packages"))
+            .count());
     }
-    
+
     // Fallback to rpm
     let output = run_command("rpm", &["-qa"])?;
     Ok(output.lines().filter(|line| !line.is_empty()).count())
@@ -165,7 +181,7 @@ fn get_dnf_package_count() -> Result<usize> {
 fn get_portage_package_count() -> Result<usize> {
     // Count directories in /var/db/pkg, excluding the category directories
     let mut count = 0;
-    
+
     if let Ok(entries) = fs::read_dir("/var/db/pkg") {
         for entry in entries {
             if let Ok(entry) = entry {
@@ -178,6 +194,6 @@ fn get_portage_package_count() -> Result<usize> {
             }
         }
     }
-    
+
     Ok(count)
 }

@@ -1,5 +1,5 @@
-pub mod hardware;
-pub mod system;
-pub mod packages;
 pub mod desktop;
+pub mod hardware;
+pub mod packages;
 pub mod sensors;
+pub mod system;
